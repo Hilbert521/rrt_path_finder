@@ -1,17 +1,25 @@
+/*
+ * Standard libs include
+ */
 #include <iostream>
 #include <vector>
 #include <float.h>
 #include <time.h>
 #include <cmath>
 #include <string>
-
+/*
+ * OpenCV includes
+ */
 #include <opencv2/core/core.hpp>
 #include <opencv2/highgui/highgui.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
-
 #include "opencv2/imgcodecs/imgcodecs.hpp"
 #include "opencv2/videoio/videoio.hpp"
-
+/*
+ * Ros includes
+ */
+#include "ros/ros.h"
+#include "nav_msgs/OccupancyGrid.h"
 
 #define MAX_INC 10
 #define PRECISION 0.1
@@ -21,6 +29,13 @@
 double targetX=0;
 double targetY=0;
 
+typedef struct _Map
+{
+	uint8_t *data;
+	unsigned int height;
+	unsigned int width;
+}Map;
+
 typedef struct _Vertex
 {
   double data[2];
@@ -28,6 +43,8 @@ typedef struct _Vertex
   double dist;
   unsigned int index;
 }Vertex;
+
+Map map;
 
 static void onMouse( int event, int x, int y, int, void* );
 int is_goal_reachable(const std::vector<Vertex*>& lv, const cv::Mat& im);
@@ -38,6 +55,20 @@ void rand_free_conf(Vertex& qrand, int height, int width);
 Vertex* new_conf(const Vertex& qrand, Vertex& qnear, double *dq, const cv::Mat& im);
 cv::Point2f vertex_to_point2f(const Vertex& v);
 std::string type2str(int type);
+
+void mapCallback(const nav_msgs::OccupancyGrid::ConstPtr& msg){
+  std_msgs::Header header = msg->header;
+  nav_msgs::MapMetaData info = msg->info;
+  Map map{NULL, info.width, info.height};
+  map.data = new uint8_t(map.width*map.height);
+  
+  for (unsigned int i = 0; i < map.width*map.height; i++)
+      map.data[i] = msg->data[i];
+  // nav_msgs::OccupancyGrid* newGrid = map.Grid();
+  // newGrid->header = header;
+  // newGrid->info = info;
+  // map_pub.publish(*newGrid);
+}
 
 static void onMouse( int event, int x, int y, int, void* )
 {
@@ -180,9 +211,14 @@ int main(int argc, char* argv[])
     std::cout << "Usage: ./test [image_name]" << std::endl;
     return 1;
   }
+  ros::init(argc, argv, "teleop");
+  ros::NodeHandle n;
+
   std::vector<Vertex*> vertices;
   Vertex qrand, *qnear, *qnew=NULL;
   cv::Mat image,emptyMap;
+
+  ros::Subscriber subMap = n.subscribe("/map", 10, mapCallback);
 
   srand(time(NULL));
 
@@ -191,6 +227,7 @@ int main(int argc, char* argv[])
   int h = image.rows;
   int w = image.cols;
 
+  cv::namedWindow("test map", cv::WINDOW_AUTOSIZE);
   cv::namedWindow( "Display window", cv::WINDOW_AUTOSIZE );// Create a window for display.
   cv::setMouseCallback( "Display window", onMouse, 0 );
   
