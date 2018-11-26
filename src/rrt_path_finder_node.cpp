@@ -61,7 +61,7 @@ void mapCallback(const nav_msgs::OccupancyGrid::ConstPtr& msg){
   nav_msgs::MapMetaData info = msg->info;
   Map map{NULL, info.width, info.height};
   map.data = new uint8_t(map.width*map.height);
-  
+  std::cout<< info.width << " " << info.height << std::endl;
   for (unsigned int i = 0; i < map.width*map.height; i++)
       map.data[i] = msg->data[i];
   // nav_msgs::OccupancyGrid* newGrid = map.Grid();
@@ -211,12 +211,13 @@ int main(int argc, char* argv[])
     std::cout << "Usage: ./test [image_name]" << std::endl;
     return 1;
   }
-  ros::init(argc, argv, "teleop");
+  ros::init(argc, argv, "rrt_path_finder_node");
   ros::NodeHandle n;
+  ros::Rate loop_rate(10); //10 Hz
 
   std::vector<Vertex*> vertices;
   Vertex qrand, *qnear, *qnew=NULL;
-  cv::Mat image,emptyMap;
+  cv::Mat image,emptyMap, inMap;
 
   ros::Subscriber subMap = n.subscribe("/map", 10, mapCallback);
 
@@ -246,13 +247,16 @@ int main(int argc, char* argv[])
 //	cv::line(image, vertex_to_point2f(v1), vertex_to_point2f(v2), cv::Scalar(0,0,255), 1, CV_AA);
 //	cv::imshow( "Display window", image );
 //	cv::waitKey(0);
+  if(map.height > 0 && map.width > 0)
+  	inMap = cv::Mat(map.height, map.width, CV_8UC3, map.data); 
+  std::cout << map.height << " " << map.width << std::endl;
   vertices.push_back(new Vertex{{60.,60.},NULL,0,0});
   double dq = MAX_INC;
 
   cv::Mat se = cv::getStructuringElement(cv::MORPH_ELLIPSE,cv::Size(ROBOT_RADIUS,ROBOT_RADIUS),cv::Point(-1,-1));
   cv::erode(emptyMap, emptyMap, se, cv::Point(-1,-1), 1, cv::BORDER_CONSTANT, cv::morphologyDefaultBorderValue());
 
-  while(qnew == NULL || !(abs(qnew->data[0] - targetX)<10 && abs(qnew->data[1] - targetY)<10))
+  while(ros::ok() && (qnew == NULL || !(abs(qnew->data[0] - targetX)<10 && abs(qnew->data[1] - targetY)<10)))
   {
     // std::cout << image.at<cv::Vec3b>(60,60) << std::endl;
     // std::cout << type2str(image.type()) << std::endl;
@@ -277,13 +281,15 @@ int main(int argc, char* argv[])
     // std::cout << "new x: " << qnew->data[0] << " new y: " << qnew->data[1] << std::endl;
     vertices.push_back(qnew);
     cv::line(image, vertex_to_point2f(*qnear), vertex_to_point2f(*qnew), cv::Scalar(0,0,255), 1, CV_AA);
-    cv::imshow( "Display window", image );                   // Show our image inside it.    
+    cv::imshow( "Display window", image );                   // Show our image inside it.  
+    if(map.height > 0 && map.width >0)  
+    	cv::imshow( "test map", inMap );                   // Show our image inside it.   
     cv::waitKey(10);
   }
   std::cout << "Path found. Lenght: "<< qnew->dist << std::endl;
   Vertex *parent=qnew->parent;
   std::vector<Vertex*> path(qnew->index+1);
-  while(parent!=NULL)
+  while(parent!=NULL && ros::ok())
   {
     path[qnew->index]=qnew;
 //    std::cout << qnew->index << std::endl;
@@ -291,6 +297,9 @@ int main(int argc, char* argv[])
     qnew=parent;
     parent=qnew->parent;
     cv::imshow( "Display window", image );
+    if(map.height > 0 && map.width >0)
+    	cv::imshow( "test map", inMap );                   // Show our image inside it.   
+
     //cv::waitKey(10);
   }
   path[qnew->index]=qnew;
@@ -299,7 +308,7 @@ int main(int argc, char* argv[])
 //  
   //opti
   unsigned int i=0;
-  while(i < path.size()-2)
+  while(i < path.size()-2 && ros::ok())
   {
 		for(unsigned int j=0; j < path.size()-i-3; j++)
 		{
@@ -313,13 +322,21 @@ int main(int argc, char* argv[])
 				break;
 			}
 			cv::imshow( "Display window", image );
+			if(map.height > 0 && map.width >0)
+		    cv::imshow( "test map", inMap );                   // Show our image inside it.   
 			cv::waitKey(10);
 		}
 		i++;
 		cv::waitKey(10);
 	}
-	cv::imshow( "Display window", image );
-  cv::waitKey(0);
+	while(ros::ok())
+	{
+		cv::imshow( "Display window", image );
+		if(map.height > 0 && map.width >0)
+			cv::imshow( "test map", inMap );                   // Show our image inside it.   
+  	cv::waitKey(10);
+	}
+	
 
 //  if(! image.data )                              // Check for invalid input
 //  {
