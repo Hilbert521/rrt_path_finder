@@ -20,6 +20,7 @@
  */
 #include "ros/ros.h"
 #include "nav_msgs/OccupancyGrid.h"
+#include "nav_msgs/GetMap.h"
 
 #define MAX_INC 10
 #define PRECISION 0.1
@@ -31,7 +32,7 @@ double targetY=0;
 
 typedef struct _Map
 {
-	uint8_t *data;
+	int8_t *data;
 	unsigned int height;
 	unsigned int width;
 }Map;
@@ -44,8 +45,6 @@ typedef struct _Vertex
   unsigned int index;
 }Vertex;
 
-Map map;
-
 static void onMouse( int event, int x, int y, int, void* );
 int is_goal_reachable(const std::vector<Vertex*>& lv, const cv::Mat& im);
 double dist2(const Vertex& v1, const Vertex& v2);
@@ -55,20 +54,6 @@ void rand_free_conf(Vertex& qrand, int height, int width);
 Vertex* new_conf(const Vertex& qrand, Vertex& qnear, double *dq, const cv::Mat& im);
 cv::Point2f vertex_to_point2f(const Vertex& v);
 std::string type2str(int type);
-
-void mapCallback(const nav_msgs::OccupancyGrid::ConstPtr& msg){
-  std_msgs::Header header = msg->header;
-  nav_msgs::MapMetaData info = msg->info;
-  Map map{NULL, info.width, info.height};
-  map.data = new uint8_t(map.width*map.height);
-  std::cout<< info.width << " " << info.height << std::endl;
-  for (unsigned int i = 0; i < map.width*map.height; i++)
-      map.data[i] = msg->data[i];
-  // nav_msgs::OccupancyGrid* newGrid = map.Grid();
-  // newGrid->header = header;
-  // newGrid->info = info;
-  // map_pub.publish(*newGrid);
-}
 
 static void onMouse( int event, int x, int y, int, void* )
 {
@@ -215,11 +200,31 @@ int main(int argc, char* argv[])
   ros::NodeHandle n;
   ros::Rate loop_rate(10); //10 Hz
 
+	Map map;
+  ros::ServiceClient client = n.serviceClient<nav_msgs::GetMap>("dynamic_map");
+	nav_msgs::GetMap srv;
+
+  if (client.call(srv))
+  {
+    ROS_INFO("Service GetMap succeeded.");
+    std_msgs::Header header = srv.response.map.header;
+	  nav_msgs::MapMetaData info = srv.response.map.info;
+	  map.width = info.width;
+	  map.height = info.height;
+	  map.data = &(srv.response.map.data[0]);
+	  std::cout<< "width: " << info.width << " height: " << info.height << std::endl;
+  }
+  else
+  {
+    ROS_ERROR("Service GetMap failed.");
+    return 1;
+  }
+  ROS_INFO("Map loading succeeded.");
+
   std::vector<Vertex*> vertices;
   Vertex qrand, *qnear, *qnew=NULL;
   cv::Mat image,emptyMap, inMap;
 
-  ros::Subscriber subMap = n.subscribe("/map", 10, mapCallback);
 
   srand(time(NULL));
 
@@ -228,28 +233,15 @@ int main(int argc, char* argv[])
   int h = image.rows;
   int w = image.cols;
 
-  cv::namedWindow("test map", cv::WINDOW_AUTOSIZE);
+  cv::namedWindow("test map", cv::WINDOW_NORMAL);
   cv::namedWindow( "Display window", cv::WINDOW_AUTOSIZE );// Create a window for display.
   cv::setMouseCallback( "Display window", onMouse, 0 );
   
-  // for(int i = 0 ; i < h ; i++)
-  // {
-  //   for(int j = 0 ; j < w ; j++)
-  //   	std::cout << image.at<cv::Vec3b>(j, i) << std::endl;
-  //   	// if(image.at<cv::Vec3b>(j, i) != cv::Vec3b(0,0,0))
-  //   	// 	image.at<cv::Vec3b>(j, i) = cv::Vec3b(255,255,255);
-  // }
-//  Vertex v1={{30,30},NULL,0,0};
-//  Vertex v2={{200,30},NULL,0,0};
-//  double dist = sqrt(dist2(v1,v2));
-//	std::cout << "dist:"<<dist << std::endl;
-//	std::cout << "dist wall:"<<(double)no_wall_between(v1,v2, image) << std::endl;
-//	cv::line(image, vertex_to_point2f(v1), vertex_to_point2f(v2), cv::Scalar(0,0,255), 1, CV_AA);
-//	cv::imshow( "Display window", image );
-//	cv::waitKey(0);
   if(map.height > 0 && map.width > 0)
-  	inMap = cv::Mat(map.height, map.width, CV_8UC3, map.data); 
-  std::cout << map.height << " " << map.width << std::endl;
+  {
+  	inMap = cv::Mat(map.height, map.width, CV_8UC1, map.data); 
+  	cv::bitwise_not(inMap, inMap, cv::noArray());
+  }
   vertices.push_back(new Vertex{{60.,60.},NULL,0,0});
   double dq = MAX_INC;
 
@@ -258,8 +250,6 @@ int main(int argc, char* argv[])
 
   while(ros::ok() && (qnew == NULL || !(abs(qnew->data[0] - targetX)<10 && abs(qnew->data[1] - targetY)<10)))
   {
-    // std::cout << image.at<cv::Vec3b>(60,60) << std::endl;
-    // std::cout << type2str(image.type()) << std::endl;
     qnew = NULL;
     Vertex target{{targetX, targetY}, NULL, 0.0, 0};
     int ind = is_goal_reachable(target, vertices, emptyMap);
@@ -276,9 +266,6 @@ int main(int argc, char* argv[])
       //std::cout << dq << std::endl;
       dq = MAX_INC;
     }
-    //std::cout << qnear << " " << (*qnew).parent<< " " << qnew << std::endl;
-    //std::cout << "near x: " << qnear->data[0] << " near y: " << qnear->data[1] << std::endl;
-    // std::cout << "new x: " << qnew->data[0] << " new y: " << qnew->data[1] << std::endl;
     vertices.push_back(qnew);
     cv::line(image, vertex_to_point2f(*qnear), vertex_to_point2f(*qnew), cv::Scalar(0,0,255), 1, CV_AA);
     cv::imshow( "Display window", image );                   // Show our image inside it.  
@@ -303,9 +290,7 @@ int main(int argc, char* argv[])
     //cv::waitKey(10);
   }
   path[qnew->index]=qnew;
-//  
-//  
-//  
+
   //opti
   unsigned int i=0;
   while(i < path.size()-2 && ros::ok())
