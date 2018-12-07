@@ -1,0 +1,4 @@
+<?xml version="1.0"?>
+<launch>
+  <node name="rrt_path_finder_no_slam" pkg="rrt_path_finder" type="rrt_path_finder_node" launch-prefix="valgrind"/>
+</launch>
