@@ -1,0 +1,160 @@
+#include "rrt_path_finder.hpp"
+
+cv::Point2f vertex_to_point2f(const Vertex& v)
+{
+  return cv::Point2f(v.data[0], v.data[1]);
+}
+
+std::string type2str(int type) 
+{
+  std::string r;
+
+  uchar depth = type & CV_MAT_DEPTH_MASK;
+  uchar chans = 1 + (type >> CV_CN_SHIFT);
+
+  switch ( depth ) 
+  {
+    case CV_8U:  r = "8U"; break;
+    case CV_8S:  r = "8S"; break;
+    case CV_16U: r = "16U"; break;
+    case CV_16S: r = "16S"; break;
+    case CV_32S: r = "32S"; break;
+    case CV_32F: r = "32F"; break;
+    case CV_64F: r = "64F"; break;
+    default:     r = "User"; break;
+  }
+
+  r += "C";
+  r += (chans+'0');
+
+  return r;
+}
+
+
+int is_goal_reachable(const Vertex& target, const std::vector<Vertex*>& lv, const cv::Mat& im)
+{
+  double min_dist = DBL_MAX;
+  double dist;
+  int ind = -1;
+  for(unsigned int i = 0 ; i < lv.size() ; i++)
+  {
+    dist = sqrt(dist2(target,*lv[i]));
+    if(no_wall_between(target,*lv[i], im)>=dist && min_dist > dist)
+    {
+      min_dist = dist;
+      ind = i;
+    }
+  }
+  return ind;
+}
+
+double dist2(const Vertex& v1, const Vertex& v2)
+{
+    return ((v1.data[0]-v2.data[0])*(v1.data[0]-v2.data[0]) + (v1.data[1]-v2.data[1])*(v1.data[1]-v2.data[1])); 
+}
+
+double no_wall_between(const Vertex& v1, const Vertex& v2, const cv::Mat& im)
+{
+  uint8_t* pixelPtr = (uint8_t*)im.data;
+  int cn = im.channels();
+
+  double dist = dist2(v1, v2);
+
+  double vx = -(v1.data[0]-v2.data[0])/sqrt(dist); //vecteur unitaire selon x
+  double vy = -(v1.data[1]-v2.data[1])/sqrt(dist); //vecteur unitaire selon y
+
+  double i = PRECISION;
+
+  while((vx*i*vx*i) + (vy*i*vy*i) < dist)
+  {
+    if(pixelPtr[(int)(ceil((v1.data[1] + i*vy))*im.cols*cn + ceil((v1.data[0] + i*vx))*cn)] == 0)
+      return i - PRECISION;
+    i += PRECISION;
+  }
+  return i;
+}
+
+Vertex* nearest_vertex(const Vertex& qrand, const std::vector<Vertex*>& lv)
+{
+  int min_index = 0;
+  double min = DBL_MAX;
+  double dist;
+
+  for(unsigned int i = 0 ; i < lv.size() ; i++)
+    if(min > (dist = dist2(qrand, *lv[i])))
+    {
+        min = dist;
+        min_index = i;
+    }
+  return lv[min_index];
+}
+
+void rand_free_conf(Vertex& qrand, int height, int width)
+{
+  qrand.data[0] = rand()%height;
+  qrand.data[1] = rand()%width;
+  qrand.parent = NULL;
+}
+
+Vertex* new_conf(const Vertex& qrand, Vertex& qnear, double *dq, const cv::Mat& im)
+{
+  double dist = dist2(qrand, qnear);
+  double vx = qnear.data[0] + (qrand.data[0]-qnear.data[0])/sqrt(dist)*(*dq);
+  double vy = qnear.data[1] + (qrand.data[1]-qnear.data[1])/sqrt(dist)*(*dq);
+  vx = (vx < 0) ? 0 : vx;
+  vy = (vy < 0) ? 0 : vy;
+  vx = (vx > im.cols) ? im.cols : vx;
+  vy = (vy > im.rows) ? im.rows : vy;
+  Vertex* v = new Vertex{{vx, vy},&qnear, qnear.dist + *dq, qnear.index+1};
+  if((*dq = no_wall_between(*v, qnear, im)) == MAX_INC)
+    return v;
+  else if(*dq > 0)
+  {
+    v->data[0] = qnear.data[0] + (qrand.data[0]-qnear.data[0])/sqrt(dist)*(*dq);
+    v->data[1] = qnear.data[1] + (qrand.data[1]-qnear.data[1])/sqrt(dist)*(*dq);
+    v->dist = qnear.dist + *dq;
+    return v;
+  }
+  return NULL;
+}
+
+
+
+
+
+void find_path(cv::Mat image, Vertex* parent, Vertex* qnew, std::vector<Vertex*>& path)
+{
+  while(parent!=NULL)
+  {
+    path[qnew->index]=qnew;
+    cv::line(image, vertex_to_point2f(*parent), vertex_to_point2f(*qnew), cv::Scalar(0,255,0), 2, CV_AA);
+    qnew=parent;
+    parent=qnew->parent;
+    cv::imshow( "Display window", image );
+    cv::waitKey(1);
+  }
+  path[qnew->index]=qnew;
+}
+
+void straighten_path(cv::Mat image, const cv::Mat emptyMap, std::vector<Vertex*>& path)
+{
+ 	unsigned int i=0;
+  while(i < path.size()-2)
+  {
+		for(unsigned int j=0; j < path.size()-i-3; j++)
+		{
+			int size = path.size();
+			double dist = sqrt(dist2(*path[j],*path[size-i-1]));
+			if(no_wall_between(*path[j],*path[size-i-1], emptyMap)>=dist)
+			{
+				cv::line(image, vertex_to_point2f(*path[j]), vertex_to_point2f(*path[size-i-1]), cv::Scalar(255,0,0), 2, CV_AA);
+				path.erase(path.begin()+j+1, path.begin() + size-i-1);
+				break;
+			}
+			
+		}
+		i++;
+		cv::imshow( "Display window", image );
+		cv::waitKey(10);
+	}
+}
