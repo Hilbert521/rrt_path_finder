@@ -110,34 +110,35 @@ bool get_slam_map(Map& map)
   return true;
 }
 
-int simpleRRT(char * map_file)
-{
-	/* RRT example: not with a robot in parallel for pathfinding */
-	std::vector<Vertex*> vertices;
-	Vertex qrand, *qnear, *qnew=NULL;
-	cv::Mat image,emptyMap, inMap;
 
+
+std::vector<Vertex*>& rrt(Vertex* v, double tX, double tY,cv::Mat &emptyMap)
+{
+	/* RRT Part */
 	cv::namedWindow( "Display window", cv::WINDOW_NORMAL );// Create a window for display.
 	cv::setMouseCallback( "Display window", onMouse, 0 );
-
-	srand(time(NULL));
-
-	double dq = MAX_INC;
-
-	image = cv::imread(map_file, CV_LOAD_IMAGE_COLOR);   // Read the file
-	emptyMap = cv::imread(map_file, CV_LOAD_IMAGE_COLOR);
-	int h = image.rows;
-	int w = image.cols;
-
-	vertices.push_back(new Vertex{{60.,60.},NULL,0,0});
-
+	cv::Mat image = emptyMap.clone();
 	
-	  
-	/* RRT Part */
-	while(ros::ok() && (qnew == NULL || !(abs(qnew->data[0] - targetX)<10 && abs(qnew->data[1] - targetY)<10)))
+	cv::Mat se = cv::getStructuringElement(cv::MORPH_ELLIPSE,cv::Size(10,10),cv::Point(-1,-1));
+	cv::erode(emptyMap, emptyMap, se, cv::Point(-1,-1), 1, cv::BORDER_CONSTANT, cv::morphologyDefaultBorderValue());
+	
+	srand(time(NULL));
+	double dq = MAX_INC;
+	std::vector<Vertex*> vertices;
+	vertices.push_back(v);
+	
+	//vertices.push_back(new Vertex{{60.,60.},NULL,0,0});
+	Vertex qrand, *qnear, *qnew=NULL;
+	int h = emptyMap.rows;
+	int w = emptyMap.cols;
+	
+	while(ros::ok() && (qnew == NULL || !(abs(qnew->data[0] - tX)<10 && abs(qnew->data[1] - tY)<10)))
 		{
+			tX=targetX;
+			tY=targetY;
+			cv::circle(image, cv::Point(tX,tY), 10, cv::Scalar(255,0,0), -1, 8, 0);
 			qnew = NULL;
-			Vertex target{{targetX, targetY}, NULL, 0.0, 0};
+			Vertex target{{tX, tY}, NULL, 0.0, 0};
 			int ind = is_goal_reachable(target, vertices, emptyMap);
 			if( ind != -1)
 				{
@@ -155,8 +156,8 @@ int simpleRRT(char * map_file)
 			cv::line(image, vertex_to_point2f(*qnear), vertex_to_point2f(*qnew), cv::Scalar(0,0,255), 1, CV_AA);
 			cv::imshow( "Display window", image );                   // Show our image inside it.  
 			cv::waitKey(10);
-			std::cout << "test" << std::endl;
 		}
+
 	std::cout << "Path found. Lenght: "<< qnew->dist << std::endl;
 	Vertex *parent=qnew->parent;
 
@@ -169,12 +170,46 @@ int simpleRRT(char * map_file)
 	straighten_path(image, emptyMap, path);
 	 
 	/* Keep showing the map with the robot on it */
-	while(ros::ok())
-		{
-			cv::imshow( "Display window", image );
-			cv::waitKey(10);
-		}
+	// while(ros::ok())
+	// 	{
+	// 		cv::imshow( "Display window", image );
+	// 		cv::waitKey(10);
+	// 	}
+	// /* Keep showing the map with the robot on it */
+	// while(ros::ok())
+	// 	{
+	// 		// flip(emptyMap, emptyMap, 0);
+	// 		//cv::circle(emptyMap, cv::Point(r.robot_pos_in_image[0], r.robot_pos_in_image[1]), ROBOT_RADIUS/map.res, cv::Scalar(255,255,255), 1, 8, 0);
+	// 		ros::spinOnce();
+	// 		//odom_to_map(r, map);
+	// 		// std::cout << r.robot_pos[0] << " " << r.robot_pos[1] << std::endl;
+	// 		// std::cout << r.robot_pos_in_image[0] << " " << r.robot_pos_in_image[1] << std::endl;
+	// 		//cv::circle(emptyMap, cv::Point(r.robot_pos_in_image[0], r.robot_pos_in_image[1]), ROBOT_RADIUS/map.res, cv::Scalar(0,0,0), 1, 8, 0);
+	// 		// flip(emptyMap, emptyMap, 0);
+	// 		cv::imshow( "Display window", emptyMap );                   // Show our image inside it. 
+	// 		//std::cout << cv::Point(r.robot_pos_in_image[0], r.robot_pos_in_image[1]) << std::endl;
+			       
+	// 		cv::waitKey(10);
+	  	
+	// 	}
+	std::vector<Vertex*>* pathCopy = new std::vector<Vertex*>(path); 
+	return *pathCopy;
+}
+
+int simpleRRT(char * map_file)
+{
+	/* RRT example: not with a robot in parallel for pathfinding */
+	cv::Mat image,emptyMap;
+	image = cv::imread(map_file, CV_LOAD_IMAGE_COLOR);   // Read the file
+	emptyMap = cv::imread(map_file, CV_LOAD_IMAGE_COLOR);
 	
+	std::vector<Vertex*> path = rrt(new Vertex{{60.,60.},NULL,0,0}, targetX, targetY, emptyMap);
+
+	for(int i = 0 ; i<path.size(); i++)
+		std::cout << "pt n°" << i << " ( " << path[i]->data[0] << " , " << path[i]->data[1] << " )" << std::endl; 
+	 
+	/* Keep showing the map with the robot on it */
+	while(ros::ok()){}
 }
 
 /* Main fonction */
@@ -209,15 +244,11 @@ int main(int argc, char* argv[])
 	ros::Subscriber subOdom = n.subscribe("/odom", 10, odomCallback);
 	ros::spinOnce();
 	std::vector<Vertex*> vertices;
-	Vertex qrand, *qnear, *qnew=NULL;
 	cv::Mat image,emptyMap, inMap;
 
-	cv::namedWindow( "Display window", cv::WINDOW_NORMAL );// Create a window for display.
-	cv::setMouseCallback( "Display window", onMouse, 0 );
 
-	srand(time(NULL));
 
-	double dq = MAX_INC;
+	
 
  
 	/* Real part, not to show off ! */
@@ -265,81 +296,13 @@ int main(int argc, char* argv[])
 			ros::spinOnce();
 			odom_to_map(r, map);
 		}
-	vertices.push_back(new Vertex{{r.robot_pos_in_image[0],r.robot_pos_in_image[1]},NULL,0,0});
 
 	targetX = r.robot_pos_in_image[0] + 1;
 	targetY = r.robot_pos_in_image[1];
 
-	/* RRT Part */
-	while(ros::ok() && (qnew == NULL || !(abs(qnew->data[0] - targetX)<10 && abs(qnew->data[1] - targetY)<10)))
-		{
-			qnew = NULL;
-			Vertex target{{targetX, targetY}, NULL, 0.0, 0};
-			int ind = is_goal_reachable(target, vertices, emptyMap);
-			if( ind != -1)
-				{
-					qnear = vertices[ind];
-					qnew = new_conf(target, *qnear, &dq, emptyMap);
-				}
-			while(qnew == NULL)
-				{
-					rand_free_conf(qrand, map.height, map.width);
-					qnear = nearest_vertex(qrand, vertices);
-					qnew = new_conf(qrand, *qnear, &dq, emptyMap);
-					dq = MAX_INC;
-				}
-			vertices.push_back(qnew);
-			ros::spinOnce();
-		}
-	std::cout << "Path found. Lenght: "<< qnew->dist << std::endl;
-	Vertex *parent=qnew->parent;
-	std::vector<Vertex*> path(qnew->index+1);
+	rrt(new Vertex{{r.robot_pos_in_image[0],r.robot_pos_in_image[1]},NULL,0,0},targetX,targetY,emptyMap);
 
-	/* Finding the path part */
-	while(parent!=NULL && ros::ok())
-		{
-			path[qnew->index]=qnew;
-			qnew=parent;
-			parent=qnew->parent;
-		}
-	path[qnew->index]=qnew;
-
-	/* Shortening the path with straight lines part */
-	unsigned int i=0;
-	while(i < path.size()-2 && ros::ok())
-		{
-			for(unsigned int j=0; j < path.size()-i-3; j++)
-				{
-					int size = path.size();
-					double dist = sqrt(dist2(*path[j],*path[size-i-1]));
-					if(no_wall_between(*path[j],*path[size-i-1], emptyMap)>=dist)
-						{
-							path.erase(path.begin()+j+1, path.begin() + size-i-1);
-							break;
-						}
-				}
-			i++;
-		}
-
-	/* Keep showing the map with the robot on it */
-	while(ros::ok())
-		{
-			if(map.height > 0 && map.width > 0)
-				{
-					// flip(emptyMap, emptyMap, 0);
-					cv::circle(emptyMap, cv::Point(r.robot_pos_in_image[0], r.robot_pos_in_image[1]), ROBOT_RADIUS/map.res, cv::Scalar(255,255,255), 1, 8, 0);
-					ros::spinOnce();
-					odom_to_map(r, map);
-					// std::cout << r.robot_pos[0] << " " << r.robot_pos[1] << std::endl;
-					// std::cout << r.robot_pos_in_image[0] << " " << r.robot_pos_in_image[1] << std::endl;
-					cv::circle(emptyMap, cv::Point(r.robot_pos_in_image[0], r.robot_pos_in_image[1]), ROBOT_RADIUS/map.res, cv::Scalar(0,0,0), 1, 8, 0);
-					// flip(emptyMap, emptyMap, 0);
-					cv::imshow( "Display window", emptyMap );                   // Show our image inside it. 
-					std::cout << cv::Point(r.robot_pos_in_image[0], r.robot_pos_in_image[1]) << std::endl;
-				}
-			cv::waitKey(10);
-	  	
-		}
+	
 	
 	return 0;
 }
