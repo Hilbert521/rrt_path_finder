@@ -12,6 +12,7 @@
  */
 #include "opencv2/imgcodecs/imgcodecs.hpp"
 #include "opencv2/videoio/videoio.hpp"
+
 /*
  * Ros includes
  */
@@ -20,6 +21,7 @@
 #include "nav_msgs/GetMap.h"
 #include "nav_msgs/Odometry.h"
 #include "geometry_msgs/PoseStamped.h"
+#include "tf/transform_listener.h"
 
 /*
  * node's libraries
@@ -35,7 +37,8 @@ double targetY=0;
 
 typedef struct _Robot
 {
-	double robot_pos[2];
+	// x, y, theta
+	double robot_pos[3];
 	double robot_pos_in_image[2];
 }Robot;
 
@@ -209,7 +212,7 @@ int simpleRRT(char * map_file)
 		std::cout << "pt n°" << i << " ( " << path[i]->data[0] << " , " << path[i]->data[1] << " )" << std::endl; 
 	 
 	/* Keep showing the map with the robot on it */
-	while(ros::ok()){}
+	while(ros::ok()){cv::waitKey(10);}
 }
 
 /* Main fonction */
@@ -246,11 +249,8 @@ int main(int argc, char* argv[])
 	std::vector<Vertex*> vertices;
 	cv::Mat image,emptyMap, inMap;
 
+	tf::TransformListener t;
 
-
-	
-
- 
 	/* Real part, not to show off ! */
 	Map map;
 	map.width = 0;
@@ -300,9 +300,24 @@ int main(int argc, char* argv[])
 	targetX = r.robot_pos_in_image[0] + 1;
 	targetY = r.robot_pos_in_image[1];
 
+	// Get frame change between slam_karto map frame and the frame of the odom of the robot
+	tf::StampedTransform transform_slam;
+	ros::Time now = ros::Time::now();
+    if(t.waitForTransform("odom", "map", now, ros::Duration(3.0)))
+	    {
+	    	t.lookupTransform("odom", "map", ros::Time(0), transform_slam);
+	    	std::cout << transform_slam.getOrigin().x() << std::endl;
+	    }
+	// Get frame change between the frame of the odom of the robot and the frame representing the pose of the robot
+	tf::StampedTransform transform_pose;
+	now = ros::Time::now();
+    if(t.waitForTransform("base_footprint", "odom", now, ros::Duration(3.0)))
+	    {
+	    	t.lookupTransform("base_footprint", "odom", ros::Time(0), transform_pose);
+	    	std::cout << transform_pose.getOrigin().x() << std::endl;
+	    }
+
 	rrt(new Vertex{{r.robot_pos_in_image[0],r.robot_pos_in_image[1]},NULL,0,0},targetX,targetY,emptyMap);
 
-	
-	
 	return 0;
 }
