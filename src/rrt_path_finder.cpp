@@ -91,8 +91,8 @@ Vertex* nearest_vertex(const Vertex& qrand, const std::vector<Vertex*>& lv)
 
 void rand_free_conf(Vertex& qrand, int height, int width)
 {
-  qrand.data[0] = rand()%height;
-  qrand.data[1] = rand()%width;
+  qrand.data[1] = rand()%height;
+  qrand.data[0] = rand()%width;
   qrand.parent = NULL;
 }
 
@@ -147,7 +147,7 @@ void straighten_path(cv::Mat image, const cv::Mat emptyMap, std::vector<Vertex*>
 			double dist = sqrt(dist2(*path[j],*path[size-i-1]));
 			if(no_wall_between(*path[j],*path[size-i-1], emptyMap)>=dist)
 			{
-				cv::line(image, vertex_to_point2f(*path[j]), vertex_to_point2f(*path[size-i-1]), cv::Scalar(255,0,0), 2, CV_AA);
+				cv::line(image, vertex_to_point2f(*path[j]), vertex_to_point2f(*path[size-i-1]), cv::Scalar(0,200,0), 2, CV_AA);
 				path.erase(path.begin()+j+1, path.begin() + size-i-1);
 				break;
 			}
