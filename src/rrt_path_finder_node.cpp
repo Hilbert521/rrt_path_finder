@@ -116,8 +116,11 @@ std::vector<Vertex*>& rrt(Vertex* v, double tX, double tY,cv::Mat &emptyMap)
 {
 	/* RRT Part */
 	cv::namedWindow( "Display window", cv::WINDOW_NORMAL );// Create a window for display.
+	//cv::namedWindow( "Display window2", cv::WINDOW_NORMAL );// Create a window for display.
 	cv::setMouseCallback( "Display window", onMouse, 0 );
-	cv::Mat image = emptyMap.clone();
+	cv::Mat image,endIm;
+	emptyMap.copyTo(image);
+	emptyMap.copyTo(endIm);
 	
 	cv::Mat se = cv::getStructuringElement(cv::MORPH_ELLIPSE,cv::Size(10,10),cv::Point(-1,-1));
 	cv::erode(emptyMap, emptyMap, se, cv::Point(-1,-1), 1, cv::BORDER_CONSTANT, cv::morphologyDefaultBorderValue());
@@ -131,6 +134,7 @@ std::vector<Vertex*>& rrt(Vertex* v, double tX, double tY,cv::Mat &emptyMap)
 	Vertex qrand, *qnear, *qnew=NULL;
 	int h = emptyMap.rows;
 	int w = emptyMap.cols;
+	std::cout << "size map"  << " ( " << h << " , " << w  << " )" << std::endl;
 	
 	while(ros::ok() && (qnew == NULL || !(abs(qnew->data[0] - tX)<10 && abs(qnew->data[1] - tY)<10)))
 		{
@@ -147,14 +151,17 @@ std::vector<Vertex*>& rrt(Vertex* v, double tX, double tY,cv::Mat &emptyMap)
 				}
 			while(qnew == NULL)
 				{
+					
 					rand_free_conf(qrand, h, w);
+					cv::circle(image, cv::Point(qrand.data[0],qrand.data[1]), 2, cv::Scalar(0,0,0), -1, 8, 0);
 					qnear = nearest_vertex(qrand, vertices);
 					qnew = new_conf(qrand, *qnear, &dq, emptyMap);
 					dq = MAX_INC;
 				}
 			vertices.push_back(qnew);
 			cv::line(image, vertex_to_point2f(*qnear), vertex_to_point2f(*qnew), cv::Scalar(0,0,255), 1, CV_AA);
-			cv::imshow( "Display window", image );                   // Show our image inside it.  
+			cv::imshow( "Display window", image );                   // Show our image inside it.
+			//cv::imshow( "Display window2", emptyMap );  
 			cv::waitKey(10);
 		}
 
@@ -167,7 +174,7 @@ std::vector<Vertex*>& rrt(Vertex* v, double tX, double tY,cv::Mat &emptyMap)
 	find_path(image, parent, qnew, path);
 
 	/* Shortening the path with straight lines part */
-	straighten_path(image, emptyMap, path);
+	straighten_path(endIm, emptyMap, path);
 	 
 	/* Keep showing the map with the robot on it */
 	// while(ros::ok())
@@ -192,6 +199,7 @@ std::vector<Vertex*>& rrt(Vertex* v, double tX, double tY,cv::Mat &emptyMap)
 	// 		cv::waitKey(10);
 	  	
 	// 	}
+	
 	std::vector<Vertex*>* pathCopy = new std::vector<Vertex*>(path); 
 	return *pathCopy;
 }
@@ -300,9 +308,10 @@ int main(int argc, char* argv[])
 	targetX = r.robot_pos_in_image[0] + 1;
 	targetY = r.robot_pos_in_image[1];
 
-	rrt(new Vertex{{r.robot_pos_in_image[0],r.robot_pos_in_image[1]},NULL,0,0},targetX,targetY,emptyMap);
+	rrt(new Vertex{{24,254},NULL,0,0},targetX,targetY,emptyMap);
+	//rrt(new Vertex{{r.robot_pos_in_image[0],r.robot_pos_in_image[1]},NULL,0,0},targetX,targetY,emptyMap);
 
-	
+	while(ros::ok()){cv::waitKey(10);}
 	
 	return 0;
 }
