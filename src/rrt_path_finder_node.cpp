@@ -236,8 +236,10 @@ nav_msgs::Path construct_path_msg(std::vector<Vertex*> &path)
 	std::vector<geometry_msgs::PoseStamped> poses(path.size());
 	for (int i = 0; i < path.size(); i++)
 	{
-		poses.at(i).pose.position.x = path[i]->data[0];
-		poses.at(i).pose.position.y = path[i]->data[1];
+		std::cout << "pt n°" << i << " ( " << path[i]->data[0] << " , " << path[i]->data[1] << " )" << std::endl; 
+		poses.at(i).pose.position.x =0.01* path[i]->data[0];
+		poses.at(i).pose.position.y = 0.01*path[i]->data[1];
+		poses.at(i).header.frame_id = "map";
 	}
 	msg.poses = poses;
 	return msg;
@@ -350,8 +352,12 @@ int main(int argc, char* argv[])
 
 	ros::Publisher pubPath = n.advertise<nav_msgs::Path>("path", 10);
 	nav_msgs::Path path_msg = construct_path_msg(path);
+	path_msg.header.frame_id = "map";
 	pubPath.publish(path_msg);
-	while(ros::ok()){cv::waitKey(10);}
+	while(ros::ok()){
+		pubPath.publish(path_msg);
+		ros::spinOnce();
+		cv::waitKey(10);}
 	
 	return 0;
 }
