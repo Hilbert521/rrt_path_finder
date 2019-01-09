@@ -19,6 +19,7 @@
 #include "nav_msgs/OccupancyGrid.h"
 #include "nav_msgs/GetMap.h"
 #include "nav_msgs/Odometry.h"
+#include "nav_msgs/Path.h"
 #include "geometry_msgs/PoseStamped.h"
 
 /*
@@ -220,6 +221,25 @@ int simpleRRT(char * map_file)
 	while(ros::ok()){}
 }
 
+/**
+ * Construct_Path_Msg function
+ * Used to populate a nav_msgs::Path given a list of x and y coordinates
+ * @param path the path to convvert
+ * @return msg the constructed nav_msgs::Path message
+ */
+nav_msgs::Path construct_path_msg(std::vector<Vertex*> &path)
+{
+	nav_msgs::Path msg;
+	std::vector<geometry_msgs::PoseStamped> poses(path.size());
+	for (int i = 0; i < path.size(); i++)
+	{
+		poses.at(i).pose.position.x = path[i]->data[0];
+		poses.at(i).pose.position.y = path[i]->data[1];
+	}
+	msg.poses = poses;
+	return msg;
+}
+
 /* Main fonction */
 int main(int argc, char* argv[])
 {
@@ -308,9 +328,12 @@ int main(int argc, char* argv[])
 	targetX = r.robot_pos_in_image[0] + 1;
 	targetY = r.robot_pos_in_image[1];
 
-	rrt(new Vertex{{24,254},NULL,0,0},targetX,targetY,emptyMap);
+	std::vector<Vertex*>& path = rrt(new Vertex{{24,254},NULL,0,0},targetX,targetY,emptyMap);
 	//rrt(new Vertex{{r.robot_pos_in_image[0],r.robot_pos_in_image[1]},NULL,0,0},targetX,targetY,emptyMap);
 
+	ros::Publisher pubPath = n.advertise<nav_msgs::Path>("path", 10);
+	nav_msgs::Path path_msg = construct_path_msg(path);
+	pubPath.publish(path_msg);
 	while(ros::ok()){cv::waitKey(10);}
 	
 	return 0;
