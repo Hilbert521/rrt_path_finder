@@ -191,7 +191,8 @@ int simpleRRT(char *map_file)
 	map.res = 1;
 	map.tX = targetX;
 	map.tY = targetY;
-
+	map.map = image;
+	
 	std::vector<Vertex*> path = rrt(new Vertex{{60.,60.},NULL,0,0}, map);
 
 	for(int i = 0 ; i<path.size(); i++)
