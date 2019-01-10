@@ -130,7 +130,7 @@ void find_path(cv::Mat image, Vertex* parent, Vertex* qnew, std::vector<Vertex*>
     cv::line(image, vertex_to_point2f(*parent), vertex_to_point2f(*qnew), cv::Scalar(0,255,0), 2, CV_AA);
     qnew=parent;
     parent=qnew->parent;
-    cv::imshow( "Display window", image );
+    cv::imshow( "Display window2", image );
     cv::waitKey(1);
   }
   path[qnew->index]=qnew;
@@ -154,7 +154,7 @@ void straighten_path(cv::Mat image, const cv::Mat emptyMap, std::vector<Vertex*>
 			
 		}
 		i++;
-		cv::imshow( "Display window", image );
+		cv::imshow( "Display window2", image );
 		cv::waitKey(10);
 	}
 }
