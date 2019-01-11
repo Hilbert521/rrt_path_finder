@@ -172,6 +172,8 @@ std::vector<Vertex*>& rrt(Vertex* v, double tX, double tY,cv::Mat &emptyMap)
 
 	/* Shortening the path with straight lines part */
 	straighten_path(endIm, emptyMap, path);
+
+	smoothen_path(endIm, emptyMap, path);
 	 	
 	std::vector<Vertex*>* pathCopy = new std::vector<Vertex*>(path); 
 	return *pathCopy;

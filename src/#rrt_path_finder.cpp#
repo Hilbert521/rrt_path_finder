@@ -184,6 +184,7 @@ void smoothen_path(cv::Mat image, const cv::Mat emptyMap, std::vector<Vertex*>& 
 				}
 			std::cout << "k=" << k << " ( " << Ldenom[k] << " )" << std::endl; 
 		}
+	
 	double incT = 0.1;
 	for(double t = 0; t <=  dt[path.size()-1]; t += incT)
 		{

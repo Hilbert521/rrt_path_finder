@@ -35,6 +35,7 @@ Vertex* new_conf(const Vertex& qrand, Vertex& qnear, double *dq, const cv::Mat& 
 
 void find_path(cv::Mat image, Vertex* parent, Vertex* qnew, std::vector<Vertex*>& path);
 void straighten_path(cv::Mat image, const cv::Mat emptyMap, std::vector<Vertex*>& path);
+void smoothen_path(cv::Mat image, const cv::Mat emptyMap, std::vector<Vertex*>& path);
 
 
 #endif
