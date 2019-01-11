@@ -45,11 +45,14 @@ typedef struct _Robot
 
 typedef struct _Map
 {
-	int8_t *data;
+	// int8_t *data;
+	cv::Mat map;
 	uint32_t height;
 	uint32_t width;
 	float res;
 	double origin[2];
+	double tX;
+	double tY;
 }Map;
 
 static void onMouse( int event, int x, int y, int, void* );
@@ -67,57 +70,70 @@ void odom_to_map(Robot& r, const Map& m)
 
 static void onMouse( int event, int x, int y, int, void* )
 {
-  if( event != cv::EVENT_LBUTTONDOWN )
-    return;
-  targetX= x;
-  targetY= y;
+	if( event != cv::EVENT_LBUTTONDOWN )
+		return;
+	targetX= x;
+	targetY= y;
 
-  std::cout << " x:" << x << "  y:" << y << std::endl;
+	std::cout << " x:" << x << "  y:" << y << std::endl;
 }
 
 bool get_slam_map(Map& map)
 {
 	ros::NodeHandle n;
-	ros::ServiceClient client = n.serviceClient<nav_msgs::GetMap>("dynamic_map");
+
+  	ros::ServiceClient client = n.serviceClient<nav_msgs::GetMap>("dynamic_map");
 	nav_msgs::GetMap srv;
 	if (client.call(srv))
-  {
-    ROS_INFO("Service GetMap succeeded.");
-    std_msgs::Header header = srv.response.map.header;
-	  nav_msgs::MapMetaData info = srv.response.map.info;
-	  map.width = info.width;
-	  map.height = info.height;
-	  map.res = info.resolution;
-	  map.origin[0] = info.origin.position.x;
-	  map.origin[1] = info.origin.position.y;
-	  map.data = new int8_t(map.width*map.height);
-	  for(int i = 0 ; i < map.height*map.width ; i++)
-	  	map.data[i] = srv.response.map.data[i];
-	  ROS_INFO("Map width, height: %u, %u", map.width, map.height);
-  }
-  else
-  {
-    ROS_ERROR("Service GetMap failed.");
-    return false;
-  }
-  ROS_INFO("Map loading succeeded.");
-  return true;
+	{
+		ROS_INFO("Service GetMap succeeded.");
+		std_msgs::Header header = srv.response.map.header;
+		nav_msgs::MapMetaData info = srv.response.map.info;
+		map.width = info.width;
+		map.height = info.height;
+		map.res = info.resolution;
+		map.origin[0] = info.origin.position.x;
+		map.origin[1] = info.origin.position.y;
+		map.tX = targetX;
+		map.tY = targetY;
+		if(map.height > 0 && map.width > 0)
+		{
+			cv::Mat tmp(map.height, map.width, CV_8UC1, &(srv.response.map.data[0])); 
+			tmp.copyTo(map.map);// = cv::Mat(map.height, map.width, CV_8UC1, &(srv.response.map.data[0]));  
+
+			cv::bitwise_not(map.map, map.map, cv::noArray());
+
+			cv::threshold(map.map, map.map, 254, 255, cv::THRESH_BINARY);
+
+			flip(map.map, map.map, 0);
+
+			odom_to_map(r, map);
+		}
+
+		ROS_INFO("Map width, height: %u, %u", map.width, map.height);
+	}
+	else
+	{
+		ROS_ERROR("Service GetMap failed.");
+		return false;
+	}
+	ROS_INFO("Map loading succeeded.");
+	return true;
 }
 
 
 
-std::vector<Vertex*>& rrt(Vertex* v, double tX, double tY,cv::Mat &emptyMap)
+std::vector<Vertex*>& rrt(Vertex* v, Map& m)
 {
 	/* RRT Part */
-	cv::namedWindow( "Display window", cv::WINDOW_NORMAL );// Create a window for display.
-	cv::namedWindow( "Display window2", cv::WINDOW_NORMAL );// Create a window for display.
-	cv::setMouseCallback( "Display window", onMouse, 0 );
-	cv::Mat image,endIm;
+	cv::Mat image,endIm, emptyMap;
 
-	emptyMap.copyTo(image);
+	m.map.copyTo(emptyMap);
+	m.map.copyTo(image);
 	cv::circle(image, cv::Point(v->data[0], v->data[1]), 10, cv::Scalar(0,255,0), -1, 8, 0);
 	image.copyTo(endIm);
 	
+
 	cv::Mat se = cv::getStructuringElement(cv::MORPH_ELLIPSE,cv::Size(10,10),cv::Point(-1,-1));
 	cv::erode(emptyMap, emptyMap, se, cv::Point(-1,-1), 1, cv::BORDER_CONSTANT, cv::morphologyDefaultBorderValue());
 	
@@ -132,14 +148,14 @@ std::vector<Vertex*>& rrt(Vertex* v, double tX, double tY,cv::Mat &emptyMap)
 	int w = emptyMap.cols;
 	std::cout << "size map"  << " ( " << h << " , " << w  << " )" << std::endl;
 	
-	while(ros::ok() && (qnew == NULL || !(abs(qnew->data[0] - tX)<10 && abs(qnew->data[1] - tY)<10)))
+	while(ros::ok() && (qnew == NULL || !(abs(qnew->data[0] - m.tX)<10 && abs(qnew->data[1] - m.tY)<10)))
 		{
-			tX=targetX;
-			tY=targetY;
-			cv::circle(image, cv::Point(tX,tY), 10, cv::Scalar(0,255,0), -1, 8, 0);
+			m.tX=targetX;
+			m.tY=targetY;
+			cv::circle(image, cv::Point(m.tX,m.tY), 10, cv::Scalar(0,255,0), -1, 8, 0);
 
 			qnew = NULL;
-			Vertex target{{tX, tY}, NULL, 0.0, 0};
+			Vertex target{{m.tX, m.tY}, NULL, 0.0, 0};
 			int ind = is_goal_reachable(target, vertices, emptyMap);
 			if( ind != -1)
 				{
@@ -157,8 +173,7 @@ std::vector<Vertex*>& rrt(Vertex* v, double tX, double tY,cv::Mat &emptyMap)
 				}
 			vertices.push_back(qnew);
 			cv::line(image, vertex_to_point2f(*qnear), vertex_to_point2f(*qnew), cv::Scalar(0,0,255), 1, CV_AA);
-			cv::imshow( "Display window", image );                   // Show our image inside it.
-			cv::imshow( "Display window2", emptyMap );  
+			cv::imshow( "Display window2", image );                   // Show our image inside it.
 			cv::waitKey(10);
 		}
 
@@ -179,14 +194,22 @@ std::vector<Vertex*>& rrt(Vertex* v, double tX, double tY,cv::Mat &emptyMap)
 	return *pathCopy;
 }
 
-int simpleRRT(char * map_file)
+int simpleRRT(char *map_file)
 {
 	/* RRT example: not with a robot in parallel for pathfinding */
 	cv::Mat image,emptyMap;
+	Map map;
 	image = cv::imread(map_file, CV_LOAD_IMAGE_COLOR);   // Read the file
 	emptyMap = cv::imread(map_file, CV_LOAD_IMAGE_COLOR);
 	
-	std::vector<Vertex*> path = rrt(new Vertex{{60.,60.},NULL,0,0}, targetX, targetY, emptyMap);
+	map.width = image.cols;
+	map.height = image.rows;
+	map.res = 1;
+	map.tX = targetX;
+	map.tY = targetY;
+	map.map = image;
+	
+	std::vector<Vertex*> path = rrt(new Vertex{{60.,60.},NULL,0,0}, map);
 
 	for(int i = 0 ; i<path.size(); i++)
 		std::cout << "pt n°" << i << " ( " << path[i]->data[0] << " , " << path[i]->data[1] << " )" << std::endl; 
@@ -221,28 +244,35 @@ int main(int argc, char* argv[])
 {
 	bool without_mapping = false;
 	for(int i = 0 ; i < argc ; i++)
-		{
-			std::string arg(argv[i]);
-			if(arg == "--without-mapping")
-				without_mapping = true;
-		}
+	{
+		std::string arg(argv[i]);
+		if(arg == "--without-mapping")
+			without_mapping = true;
+	}
 
 	if(argc < 3 && without_mapping)
-		{
-			std::cout << "Usage: ./test [image_name] [flags: --without-mapping]" << std::endl;
-			return 1;
-		}
+	{
+		std::cout << "Usage: ./test [image_name] [flags: --without-mapping]" << std::endl;
+		return 1;
+	}
 	
 	ros::init(argc, argv, "rrt_path_finder_node");
+
+	cv::namedWindow( "Display window", cv::WINDOW_NORMAL );// Create a window to display the robot in its environment.
+	cv::namedWindow( "Display window2", cv::WINDOW_NORMAL );// Create a window to display the rrt algorithm working.
+	cv::setMouseCallback( "Display window", onMouse, 0 );
+	cv::setMouseCallback( "Display window2", onMouse, 0 );
+
 	if(without_mapping)
-		{
-			std::cout << "simple RRT exemple" << std::endl;
-			simpleRRT(argv[1]);
-			return 0;
-		}
+	{
+		std::cout << "simple RRT exemple" << std::endl;
+		simpleRRT(argv[1]);
+		return 0;
+	}
 
 	ros::NodeHandle n;
 	ros::Rate loop_rate(100); //10 Hz
+	ros::Publisher pubPath = n.advertise<nav_msgs::Path>("path", 10);
 
 	std::vector<Vertex*> vertices;
 	cv::Mat image,emptyMap, inMap;
@@ -253,91 +283,77 @@ int main(int argc, char* argv[])
 	Map map;
 	map.width = 0;
 	map.height = 0;
-	// if(!get_slam_map(map))	{ return 1;}
+	targetX = -1;
+	targetY = -1;
+	double targetPastX = -1;
+	double targetPastY = -1;
+	if(!get_slam_map(map))	{ return 1;}
+    
+    r.robot_pos[0] = -1;
+	r.robot_pos[1] = -1;
 
-	ros::ServiceClient client = n.serviceClient<nav_msgs::GetMap>("dynamic_map");
-	nav_msgs::GetMap srv;
-	if (client.call(srv))
+    while(ros::ok() && r.robot_pos[0] == -1 && r.robot_pos[1] == -1)
+	{
+		// Get frame change between slam_karto map frame and the frame of the odom of the robot
+		tf::StampedTransform transform_slam;
+		try
 		{
-			ROS_INFO("Service GetMap succeeded.");
-			std_msgs::Header header = srv.response.map.header;
-			nav_msgs::MapMetaData info = srv.response.map.info;
-			map.width = info.width;
-			map.height = info.height;
-			map.res = info.resolution;
-			map.origin[0] = info.origin.position.x;
-			map.origin[1] = info.origin.position.y;
-			map.data = &(srv.response.map.data[0]);
-
-			ROS_INFO("Map width, height: %u, %u", map.width, map.height);
+			t.lookupTransform("map", "base_footprint", ros::Time(0), transform_slam);
 		}
-	else
+		catch (tf::TransformException ex)
 		{
-			ROS_ERROR("Service GetMap failed.");
-			return 1;
+			ROS_ERROR("%s",ex.what());
+			ros::Duration(1.0).sleep();
 		}
-	ROS_INFO("Map loading succeeded.");
+		r.robot_pos[0] = transform_slam.getOrigin().x();
+		r.robot_pos[1] = transform_slam.getOrigin().y();
 
-	if(map.height > 0 && map.width > 0)
-		{
-			emptyMap = cv::Mat(map.height, map.width, CV_8UC1, map.data);  
-  
-			cv::Mat se = cv::getStructuringElement(cv::MORPH_ELLIPSE,cv::Size(ROBOT_RADIUS/map.res,ROBOT_RADIUS/map.res),cv::Point(-1,-1));
-			cv::dilate(emptyMap, emptyMap, se, cv::Point(-1,-1), 1, cv::BORDER_CONSTANT, cv::morphologyDefaultBorderValue());
-
-			cv::bitwise_not(emptyMap, emptyMap, cv::noArray());
-
-			cv::threshold(emptyMap, emptyMap, 254, 255, cv::THRESH_BINARY);
-
-			flip(emptyMap, emptyMap, 0);
- 
-			odom_to_map(r, map);
-		}
-
-	targetX = r.robot_pos_in_image[0] + 1;
-	targetY = r.robot_pos_in_image[1];
-	
-	
-	ros::Publisher pubPath = n.advertise<nav_msgs::Path>("path", 10);
-        
-	//rrt(new Vertex{{81,81},NULL,0,0},targetX,targetY,emptyMap);
-	rrt(new Vertex{{0,0},NULL,0,0},targetX,targetY,emptyMap);
+		odom_to_map(r, map);
+	}
 
 	while(ros::ok())
+	{
+		// Get frame change between slam_karto map frame and the frame of the odom of the robot
+		tf::StampedTransform transform_slam;
+		try
 		{
-			// Get frame change between slam_karto map frame and the frame of the odom of the robot
-			tf::StampedTransform transform_slam;
-			try
-				{
-					t.lookupTransform("map", "base_footprint", ros::Time(0), transform_slam);
-				}
-			catch (tf::TransformException ex)
-				{
-					ROS_ERROR("%s",ex.what());
-					ros::Duration(1.0).sleep();
-				}
-			r.robot_pos[0] = transform_slam.getOrigin().x();
-			r.robot_pos[1] = transform_slam.getOrigin().y();
-
-			odom_to_map(r, map);
-			cv::circle(emptyMap, cv::Point(r.robot_pos_in_image[0], r.robot_pos_in_image[1]), ROBOT_RADIUS/map.res, cv::Scalar(0,0,0), -1, 8, 0);
-			// std::vector<Vertex*>& path = rrt(new Vertex{{r.robot_pos_in_image[0],r.robot_pos_in_image[1]},NULL,0,0},targetX,targetY,emptyMap);
-			// nav_msgs::Path path_msg = construct_path_msg(path);
-			// path_msg.header.frame_id = "map";
-			// pubPath.publish(path_msg);
-			// std::cout << std::endl;
-			// std::cout << r.robot_pos_in_image[0] << "|" << r.robot_pos_in_image[1] << std::endl;
-			// std::cout << transform_slam.getOrigin().x() << std::endl;
-			//    std::cout << transform_slam.getOrigin().y() << std::endl;
-			//    std::cout << transform_slam.getOrigin().z() << std::endl;
-			//    std::cout << transform_slam.getRotation().x() << std::endl;
-			//    std::cout << transform_slam.getRotation().y() << std::endl;
-			//    std::cout << transform_slam.getRotation().z() << std::endl;
-			//    std::cout << transform_slam.getRotation().w() << std::endl;  
-			cv::imshow( "Display window", emptyMap );                   // Show our image inside it.
-			cv::circle(emptyMap, cv::Point(r.robot_pos_in_image[0], r.robot_pos_in_image[1]), ROBOT_RADIUS/map.res, cv::Scalar(255,0,0), -1, 8, 0);
-			//pubPath.publish(path_msg);
-			cv::waitKey(10);
+			t.lookupTransform("map", "base_footprint", ros::Time(0), transform_slam);
 		}
+		catch (tf::TransformException ex)
+		{
+			ROS_ERROR("%s",ex.what());
+			ros::Duration(1.0).sleep();
+		}
+		r.robot_pos[0] = transform_slam.getOrigin().x();
+		r.robot_pos[1] = transform_slam.getOrigin().y();
+
+		odom_to_map(r, map);
+		cv::circle(map.map, cv::Point(r.robot_pos_in_image[0], r.robot_pos_in_image[1]), ROBOT_RADIUS/map.res, cv::Scalar(0,0,0), -1, 8, 0);
+		// std::vector<Vertex*>& path = rrt(new Vertex{{r.robot_pos_in_image[0],r.robot_pos_in_image[1]},NULL,0,0},targetX,targetY,emptyMap);
+		// nav_msgs::Path path_msg = construct_path_msg(path);
+		// path_msg.header.frame_id = "map";
+		// pubPath.publish(path_msg);
+		// std::cout << std::endl;
+		// std::cout << r.robot_pos_in_image[0] << "|" << r.robot_pos_in_image[1] << std::endl;
+		// std::cout << transform_slam.getOrigin().x() << std::endl;
+		//    std::cout << transform_slam.getOrigin().y() << std::endl;
+		//    std::cout << transform_slam.getOrigin().z() << std::endl;
+		//    std::cout << transform_slam.getRotation().x() << std::endl;
+		//    std::cout << transform_slam.getRotation().y() << std::endl;
+		//    std::cout << transform_slam.getRotation().z() << std::endl;
+		//    std::cout << transform_slam.getRotation().w() << std::endl;  
+
+		if(targetY != targetPastY && targetX != targetPastX)
+		{
+			rrt(new Vertex{{r.robot_pos_in_image[0],r.robot_pos_in_image[1]},NULL,0,0}, map);
+			targetPastX = targetX;
+			targetPastY = targetY;
+		}
+
+		cv::imshow( "Display window", map.map );                   // Show our image inside it.
+		cv::circle(map.map, cv::Point(r.robot_pos_in_image[0], r.robot_pos_in_image[1]), ROBOT_RADIUS/map.res, cv::Scalar(255,0,0), -1, 8, 0);
+		//pubPath.publish(path_msg);
+		cv::waitKey(10);
+	}	
 	return 0;
 }
