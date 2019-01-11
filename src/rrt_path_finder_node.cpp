@@ -70,42 +70,56 @@ void odom_to_map(Robot& r, const Map& m)
 
 static void onMouse( int event, int x, int y, int, void* )
 {
-  if( event != cv::EVENT_LBUTTONDOWN )
-    return;
-  targetX= x;
-  targetY= y;
+	if( event != cv::EVENT_LBUTTONDOWN )
+		return;
+	targetX= x;
+	targetY= y;
 
-  std::cout << " x:" << x << "  y:" << y << std::endl;
+	std::cout << " x:" << x << "  y:" << y << std::endl;
 }
 
-// bool get_slam_map(Map& map)
-// {
-// 	ros::NodeHandle n;
-// 	ros::ServiceClient client = n.serviceClient<nav_msgs::GetMap>("dynamic_map");
-// 	nav_msgs::GetMap srv;
-// 	if (client.call(srv))
-//   {
-//     ROS_INFO("Service GetMap succeeded.");
-//     std_msgs::Header header = srv.response.map.header;
-// 	  nav_msgs::MapMetaData info = srv.response.map.info;
-// 	  map.width = info.width;
-// 	  map.height = info.height;
-// 	  map.res = info.resolution;
-// 	  map.origin[0] = info.origin.position.x;
-// 	  map.origin[1] = info.origin.position.y;
-// 	  map.data = new int8_t(map.width*map.height);
-// 	  for(int i = 0 ; i < map.height*map.width ; i++)
-// 	  	map.data[i] = srv.response.map.data[i];
-// 	  ROS_INFO("Map width, height: %u, %u", map.width, map.height);
-//   }
-//   else
-//   {
-//     ROS_ERROR("Service GetMap failed.");
-//     return false;
-//   }
-//   ROS_INFO("Map loading succeeded.");
-//   return true;
-// }
+bool get_slam_map(Map& map)
+{
+	ros::NodeHandle n;
+
+  	ros::ServiceClient client = n.serviceClient<nav_msgs::GetMap>("dynamic_map");
+	nav_msgs::GetMap srv;
+	if (client.call(srv))
+	{
+		ROS_INFO("Service GetMap succeeded.");
+		std_msgs::Header header = srv.response.map.header;
+		nav_msgs::MapMetaData info = srv.response.map.info;
+		map.width = info.width;
+		map.height = info.height;
+		map.res = info.resolution;
+		map.origin[0] = info.origin.position.x;
+		map.origin[1] = info.origin.position.y;
+		map.tX = targetX;
+		map.tY = targetY;
+		if(map.height > 0 && map.width > 0)
+		{
+			cv::Mat tmp(map.height, map.width, CV_8UC1, &(srv.response.map.data[0])); 
+			tmp.copyTo(map.map);// = cv::Mat(map.height, map.width, CV_8UC1, &(srv.response.map.data[0]));  
+
+			cv::bitwise_not(map.map, map.map, cv::noArray());
+
+			cv::threshold(map.map, map.map, 254, 255, cv::THRESH_BINARY);
+
+			flip(map.map, map.map, 0);
+
+			odom_to_map(r, map);
+		}
+
+		ROS_INFO("Map width, height: %u, %u", map.width, map.height);
+	}
+	else
+	{
+		ROS_ERROR("Service GetMap failed.");
+		return false;
+	}
+	ROS_INFO("Map loading succeeded.");
+	return true;
+}
 
 
 
@@ -242,9 +256,10 @@ int main(int argc, char* argv[])
 	
 	ros::init(argc, argv, "rrt_path_finder_node");
 
-	cv::namedWindow( "Display window", cv::WINDOW_NORMAL );// Create a window for display.
-	cv::namedWindow( "Display window2", cv::WINDOW_NORMAL );// Create a window for display.
+	cv::namedWindow( "Display window", cv::WINDOW_NORMAL );// Create a window to display the robot in its environment.
+	cv::namedWindow( "Display window2", cv::WINDOW_NORMAL );// Create a window to display the rrt algorithm working.
 	cv::setMouseCallback( "Display window", onMouse, 0 );
+	cv::setMouseCallback( "Display window2", onMouse, 0 );
 
 	if(without_mapping)
 	{
@@ -270,61 +285,7 @@ int main(int argc, char* argv[])
 	targetY = -1;
 	double targetPastX = -1;
 	double targetPastY = -1;
-	// if(!get_slam_map(map))	{ return 1;}
-
-	ros::ServiceClient client = n.serviceClient<nav_msgs::GetMap>("dynamic_map");
-	nav_msgs::GetMap srv;
-	if (client.call(srv))
-	{
-		ROS_INFO("Service GetMap succeeded.");
-		std_msgs::Header header = srv.response.map.header;
-		nav_msgs::MapMetaData info = srv.response.map.info;
-		map.width = info.width;
-		map.height = info.height;
-		map.res = info.resolution;
-		map.origin[0] = info.origin.position.x;
-		map.origin[1] = info.origin.position.y;
-		// map.data = &(srv.response.map.data[0]);
-		map.tX = targetX;
-		map.tY = targetY;
-		if(map.height > 0 && map.width > 0)
-		{
-			map.map = cv::Mat(map.height, map.width, CV_8UC1, &(srv.response.map.data[0]));  
-
-			cv::bitwise_not(map.map, map.map, cv::noArray());
-
-			cv::threshold(map.map, map.map, 254, 255, cv::THRESH_BINARY);
-
-			flip(map.map, map.map, 0);
-
-			odom_to_map(r, map);
-		}
-
-		ROS_INFO("Map width, height: %u, %u", map.width, map.height);
-	}
-	else
-	{
-		ROS_ERROR("Service GetMap failed.");
-		return 1;
-	}
-	ROS_INFO("Map loading succeeded.");
-
-	// if(map.height > 0 && map.width > 0)
-	// {
-	// 	emptyMap = cv::Mat(map.height, map.width, CV_8UC1, &(srv.response.map.data[0]));  
-
-	// 	cv::Mat se = cv::getStructuringElement(cv::MORPH_ELLIPSE,cv::Size(ROBOT_RADIUS/map.res,ROBOT_RADIUS/map.res),cv::Point(-1,-1));
-	// 	cv::dilate(emptyMap, emptyMap, se, cv::Point(-1,-1), 1, cv::BORDER_CONSTANT, cv::morphologyDefaultBorderValue());
-
-	// 	cv::bitwise_not(emptyMap, emptyMap, cv::noArray());
-
-	// 	cv::threshold(emptyMap, emptyMap, 254, 255, cv::THRESH_BINARY);
-
-	// 	flip(emptyMap, emptyMap, 0);
-
-	// 	odom_to_map(r, map);
-	// }
-
+	if(!get_slam_map(map))	{ return 1;}
     
     r.robot_pos[0] = -1;
 	r.robot_pos[1] = -1;
