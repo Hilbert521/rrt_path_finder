@@ -187,6 +187,8 @@ std::vector<Vertex*>& rrt(Vertex* v, Map& m)
 
 	/* Shortening the path with straight lines part */
 	straighten_path(endIm, emptyMap, path);
+
+	smoothen_path(endIm, emptyMap, path);
 	 	
 	for(int i = 0 ; i<path.size(); i++)
 		std::cout << "pt n°" << i << " ( " << path[i]->data[0] << " , " << path[i]->data[1] << " )" << std::endl; 
