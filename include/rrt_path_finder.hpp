@@ -16,6 +16,9 @@
 #define MAX_INC 10
 #define PRECISION 0.1
 
+#define LAGRANGE 0
+#define BEZIER 1
+
 
 typedef struct _Vertex
 {
@@ -40,7 +43,7 @@ Vertex* new_conf(const Vertex& qrand, Vertex& qnear, double *dq, const cv::Mat& 
 
 void find_path(cv::Mat image, Vertex* parent, Vertex* qnew, std::vector<Vertex*>& path);
 void straighten_path(cv::Mat image, const cv::Mat emptyMap, std::vector<Vertex*>& path);
-void smoothen_path(cv::Mat image, const cv::Mat emptyMap, std::vector<Vertex*>& path);
+void smoothen_path(cv::Mat image, const cv::Mat emptyMap, std::vector<Vertex*>& path,int type_interpolation=BEZIER);
 
 void linear_interpol_path(cv::Mat image, const cv::Mat emptyMap, std::vector<Vertex*>& path);
 

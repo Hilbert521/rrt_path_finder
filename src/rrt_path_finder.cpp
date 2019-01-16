@@ -168,10 +168,8 @@ void linear_interpol_path(cv::Mat image, const cv::Mat emptyMap, std::vector<Ver
 	double dt[path.size()-1];
 	
 	for(int k=0; k < path.size()-1; k++)
-		{
 			dt[k] = sqrt(dist2(*path[k],*path[k+1]))/200.;
-			std::cout << "dist=" << dt[k]  << std::endl;
-		}
+	
 	std::vector<Vertex*>::iterator it=path.begin();
 	for(int i =0, j=0;i<N-1 ; it++, i++,j++)
 		{
@@ -183,7 +181,6 @@ void linear_interpol_path(cv::Mat image, const cv::Mat emptyMap, std::vector<Ver
 			for(double t = 0; t <=  1; t += 1/(nbPt+dt[j]))
 				{
 					path.insert(++it,new Vertex{{t*dx + (1-t)*vx,t*dy +(1-t)*vy},NULL, 1, 0});
-					std::cout << "t=" << t << " fx " << t*dx + (1-t)*vx << " fy" << t*dy +(1-t)*vy << std::endl;
 					i++;
 					N++;
 				}
@@ -197,84 +194,74 @@ void linear_interpol_path(cv::Mat image, const cv::Mat emptyMap, std::vector<Ver
 	
 }
 
-void smoothen_path(cv::Mat image, const cv::Mat emptyMap, std::vector<Vertex*>& path)
+void smoothen_path(cv::Mat image, const cv::Mat emptyMap, std::vector<Vertex*>& path,int type_interpolation)
 {
-	/*********
-	unsigned int i=0;
-	double Ldenom[path.size()];
-	double dt[path.size()];
-	dt[0]=0;
-	for(int k=1; k < path.size(); k++)
+	if(type_interpolation == LAGRANGE)
 		{
-			dt[k] = k;// dt[k-1] + sqrt(dist2(*path[k-1],*path[k]))/200.;
-			std::cout << "dt=" << dt[k]  << std::endl;
-			std::cout << "dist = " << dist2(*path[k-1],*path[k]) << std::endl;
-		}
+			double Ldenom[path.size()];
+			//compute the differents time spans between each points 
+			double dt[path.size()];
+			dt[0]=0;
+			for(int k=1; k < path.size(); k++)
+				dt[k] = k;
 	
-	
-	for(int k=0; k < path.size(); k++)
-		{
-			Ldenom[k]=1;
-			for(int j=0; j < path.size(); j++)
-				{
+			Ldenom[0]=1;
+			for(int k=0; k < path.size();Ldenom[++k]=1)
+				for(int j=0; j < path.size(); j++)
 					if(j!=k)
 						Ldenom[k] = Ldenom[k] *(dt[k] - dt[j]);
-				}
-			std::cout << "k=" << k << " ( " << Ldenom[k] << " )" << std::endl; 
-		}
-	double incT = 0.1;
-	for(double t = 0; t <=  dt[path.size()-1]; t += incT)
-		{
-			double fx = 0,fy=0;
-			for(int k=0; k < path.size(); k++)
+				
+			double incT = 0.1;
+			for(double t = 0; t <=  dt[path.size()-1]; t += incT)
 				{
-					double pdt = 1;
-					for(int j=0; j < path.size(); j++)
+					double fx = 0,fy=0;
+					for(int k=0; k < path.size(); k++)
 						{
-							if(j!=k)
-								pdt *= (t - dt[j]); 
+							double pdt = 1;
+							for(int j=0; j < path.size(); j++)
+								{
+									if(j!=k)
+										pdt *= (t - dt[j]); 
+								}
+							//std::cout << "pdt k=" << k << " ( " << pdt << " )" << std::endl;
+							fx += path[k]->data[0]*pdt/Ldenom[k];
+							fy += path[k]->data[1]*pdt/Ldenom[k];
+							//std::cout << "k=" << k << " fx " << fx << " fy" << fy << std::endl;
 						}
-					//std::cout << "pdt k=" << k << " ( " << pdt << " )" << std::endl;
-					fx += path[k]->data[0]*pdt/Ldenom[k];
-					fy += path[k]->data[1]*pdt/Ldenom[k];
-					//std::cout << "k=" << k << " fx " << fx << " fy" << fy << std::endl;
+					cv::circle(image, cv::Point2f(fx, fy), 3, cv::Scalar(0,0,0), -1, 8, 0);
+					cv::imshow( "Display window", image );
+					std::cout << "t=" << t << " ( " << fx << " , " << fy << " )" << std::endl; 
 				}
-			cv::circle(image, cv::Point2f(fx, fy), 3, cv::Scalar(0,0,0), -1, 8, 0);
-			cv::imshow( "Display window", image );
-			std::cout << "t=" << t << " ( " << fx << " , " << fy << " )" << std::endl; 
+
 		}
-
-	***/
-
-	
-	
-	//DrawBezier
-	int N = path.size();
-	double Tx[N][N], Ty[N][N]; 
-	double nbPt = 20;
-	std::vector<Vertex*> newPath;
-	for(int j=0; j<N; j++)
+	else if(type_interpolation == BEZIER)
 		{
-			Tx[0][j]=path[j]->data[0];
-			Ty[0][j]=path[j]->data[1];
-			std::cout << "init=" << j << " ( " << Tx[0][j] << " , " << Ty[0][j] << " )" << std::endl;
-		}
-	for(double t = 0; t <=  1; t += 1/nbPt)
-		{	
-			for(int i=1; i<N; i++)
+			int N = path.size();
+			double Tx[N][N], Ty[N][N]; 
+			double nbPt = 20;
+			for(int j=0; j<N; j++)
 				{
-					for(int j=i; j<N; j++)
-						{
-							Tx[i][j] = t*Tx[i-1][j-1] + (1-t)*Tx[i-1][j];//T^i_j
-							Ty[i][j] = t*Ty[i-1][j-1] + (1-t)*Ty[i-1][j];//T^i_j
-						}
+					Tx[0][j]=path[j]->data[0];
+					Ty[0][j]=path[j]->data[1];
+					//std::cout << "init=" << j << " ( " << Tx[0][j] << " , " << Ty[0][j] << " )" << std::endl;
 				}
-			newPath.push_back(new Vertex{{Tx[N-1][N-1], Ty[N-1][N-1]},NULL, 1, 0});
-			cv::circle(image, cv::Point2f(Tx[N-1][N-1], Ty[N-1][N-1]), 3, cv::Scalar(0,0,0), -1, 8, 0);
-			cv::imshow( "Display window", image );
-			std::cout << "t=" << t << " ( " << Tx[N-1][N-1] << " , " << Ty[N-1][N-1] << " )" << std::endl;
+			path.erase(path.begin(),path.end());
+			for(double t = 0; t <=  1; t += 1/nbPt)
+				{	
+					for(int i=1; i<N; i++)
+						{
+							for(int j=i; j<N; j++)
+								{
+									Tx[i][j] = t*Tx[i-1][j-1] + (1-t)*Tx[i-1][j];//T^i_j
+									Ty[i][j] = t*Ty[i-1][j-1] + (1-t)*Ty[i-1][j];//T^i_j
+								}
+						}
+					path.push_back(new Vertex{{Tx[N-1][N-1], Ty[N-1][N-1]},NULL, 1, 0});
+					cv::circle(image, cv::Point2f(Tx[N-1][N-1], Ty[N-1][N-1]), 3, cv::Scalar(0,0,0), -1, 8, 0);
+					cv::imshow( "Display window", image );
+					//std::cout << "t=" << t << " ( " << Tx[N-1][N-1] << " , " << Ty[N-1][N-1] << " )" << std::endl;
+				}
 		}
-	
 }
 
 
