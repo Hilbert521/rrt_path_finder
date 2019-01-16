@@ -135,7 +135,7 @@ std::vector<Vertex*>& rrt(Vertex* v, Map& m)
 	
 
 	cv::Mat se = cv::getStructuringElement(cv::MORPH_ELLIPSE,cv::Size(10,10),cv::Point(-1,-1));
-	cv::erode(emptyMap, emptyMap, se, cv::Point(-1,-1), 1, cv::BORDER_CONSTANT, cv::morphologyDefaultBorderValue());
+	cv::erode(emptyMap, emptyMap, se, cv::Point(-1,-1), 2, cv::BORDER_CONSTANT, cv::morphologyDefaultBorderValue());
 	
 	srand(time(NULL));
 	double dq = MAX_INC;
@@ -187,6 +187,8 @@ std::vector<Vertex*>& rrt(Vertex* v, Map& m)
 
 	/* Shortening the path with straight lines part */
 	straighten_path(endIm, emptyMap, path);
+
+	linear_interpol_path(endIm, emptyMap, path);
 
 	smoothen_path(endIm, emptyMap, path);
 	 	

@@ -160,15 +160,53 @@ void straighten_path(cv::Mat image, const cv::Mat emptyMap, std::vector<Vertex*>
 	}
 }
 
+void linear_interpol_path(cv::Mat image, const cv::Mat emptyMap, std::vector<Vertex*>& path)
+{
+        
+	int N = path.size();
+	double nbPt = 5;
+	double dt[path.size()-1];
+	
+	for(int k=0; k < path.size()-1; k++)
+		{
+			dt[k] = sqrt(dist2(*path[k],*path[k+1]))/200.;
+			std::cout << "dist=" << dt[k]  << std::endl;
+		}
+	std::vector<Vertex*>::iterator it=path.begin();
+	for(int i =0, j=0;i<N-1 ; it++, i++,j++)
+		{
+			double vx = path[i]->data[0];
+			double vy = path[i]->data[1];
+			double dx = path[i+1]->data[0];
+			double dy = path[i+1]->data[1];
+			
+			for(double t = 0; t <=  1; t += 1/(nbPt+dt[j]))
+				{
+					path.insert(++it,new Vertex{{t*dx + (1-t)*vx,t*dy +(1-t)*vy},NULL, 1, 0});
+					std::cout << "t=" << t << " fx " << t*dx + (1-t)*vx << " fy" << t*dy +(1-t)*vy << std::endl;
+					i++;
+					N++;
+				}
+		}
+	for(int k=0; k < path.size(); k++)
+		{
+			cv::circle(image, cv::Point2f(path[k]->data[0], path[k]->data[1]), 3, cv::Scalar(0,200,0), -1, 10, 0);
+			cv::imshow( "Display window", image );
+		}
+
+	
+}
+
 void smoothen_path(cv::Mat image, const cv::Mat emptyMap, std::vector<Vertex*>& path)
 {
- 	unsigned int i=0;
+	/*********
+	unsigned int i=0;
 	double Ldenom[path.size()];
 	double dt[path.size()];
 	dt[0]=0;
 	for(int k=1; k < path.size(); k++)
 		{
-			dt[k] = dt[k-1] + sqrt(dist2(*path[k-1],*path[k]))/200.;
+			dt[k] = k;// dt[k-1] + sqrt(dist2(*path[k-1],*path[k]))/200.;
 			std::cout << "dt=" << dt[k]  << std::endl;
 			std::cout << "dist = " << dist2(*path[k-1],*path[k]) << std::endl;
 		}
@@ -206,5 +244,38 @@ void smoothen_path(cv::Mat image, const cv::Mat emptyMap, std::vector<Vertex*>& 
 			std::cout << "t=" << t << " ( " << fx << " , " << fy << " )" << std::endl; 
 		}
 
-       
+	***/
+
+	
+	
+	//DrawBezier
+	int N = path.size();
+	double Tx[N][N], Ty[N][N]; 
+	double nbPt = 20;
+	std::vector<Vertex*> newPath;
+	for(int j=0; j<N; j++)
+		{
+			Tx[0][j]=path[j]->data[0];
+			Ty[0][j]=path[j]->data[1];
+			std::cout << "init=" << j << " ( " << Tx[0][j] << " , " << Ty[0][j] << " )" << std::endl;
+		}
+	for(double t = 0; t <=  1; t += 1/nbPt)
+		{	
+			for(int i=1; i<N; i++)
+				{
+					for(int j=i; j<N; j++)
+						{
+							Tx[i][j] = t*Tx[i-1][j-1] + (1-t)*Tx[i-1][j];//T^i_j
+							Ty[i][j] = t*Ty[i-1][j-1] + (1-t)*Ty[i-1][j];//T^i_j
+						}
+				}
+			newPath.push_back(new Vertex{{Tx[N-1][N-1], Ty[N-1][N-1]},NULL, 1, 0});
+			cv::circle(image, cv::Point2f(Tx[N-1][N-1], Ty[N-1][N-1]), 3, cv::Scalar(0,0,0), -1, 8, 0);
+			cv::imshow( "Display window", image );
+			std::cout << "t=" << t << " ( " << Tx[N-1][N-1] << " , " << Ty[N-1][N-1] << " )" << std::endl;
+		}
+	
 }
+
+
+

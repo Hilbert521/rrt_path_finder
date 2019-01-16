@@ -16,6 +16,7 @@
 #define MAX_INC 10
 #define PRECISION 0.1
 
+
 typedef struct _Vertex
 {
   double data[2];
@@ -23,6 +24,10 @@ typedef struct _Vertex
   double dist;
   unsigned int index;
 }Vertex;
+
+typedef struct {
+        Vertex P[4];
+  } Bezier;
 
 cv::Point2f vertex_to_point2f(const Vertex& v);
 std::string type2str(int type) ;
@@ -37,5 +42,6 @@ void find_path(cv::Mat image, Vertex* parent, Vertex* qnew, std::vector<Vertex*>
 void straighten_path(cv::Mat image, const cv::Mat emptyMap, std::vector<Vertex*>& path);
 void smoothen_path(cv::Mat image, const cv::Mat emptyMap, std::vector<Vertex*>& path);
 
+void linear_interpol_path(cv::Mat image, const cv::Mat emptyMap, std::vector<Vertex*>& path);
 
 #endif
