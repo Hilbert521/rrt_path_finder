@@ -59,13 +59,20 @@ static void onMouse( int event, int x, int y, int, void* );
 
 
 
-
 Robot r;
 
 void odom_to_map(Robot& r, const Map& m)
 {
 	r.robot_pos_in_image[0] = r.robot_pos[0]/m.res - m.origin[0]/m.res;
 	r.robot_pos_in_image[1] = m.height - (r.robot_pos[1]/m.res - m.origin[1]/m.res);
+}
+
+Vertex *map_to_odom(const Vertex *v, const Map& m)
+{
+	Vertex *ret = new Vertex();
+	ret->data[0] = v->data[0]*m.res + m.origin[0];
+	ret->data[1] = -(v->data[1] - m.height)*m.res + m.origin[1];
+	return ret;
 }
 
 static void onMouse( int event, int x, int y, int, void* )
@@ -126,56 +133,57 @@ bool get_slam_map(Map& map)
 std::vector<Vertex*>& rrt(Vertex* v, Map& m)
 {
 	/* RRT Part */
-	cv::Mat image,endIm, emptyMap;
-
-	m.map.copyTo(emptyMap);
-	m.map.copyTo(image);
-	cv::circle(image, cv::Point(v->data[0], v->data[1]), 10, cv::Scalar(0,255,0), -1, 8, 0);
-	image.copyTo(endIm);
-	
-
-	cv::Mat se = cv::getStructuringElement(cv::MORPH_ELLIPSE,cv::Size(10,10),cv::Point(-1,-1));
-	cv::erode(emptyMap, emptyMap, se, cv::Point(-1,-1), 2, cv::BORDER_CONSTANT, cv::morphologyDefaultBorderValue());
-	
 	srand(time(NULL));
 	double dq = MAX_INC;
 	std::vector<Vertex*> vertices;
-	vertices.push_back(v);
-	
-	// vertices.push_back(new Vertex{{60.,60.},NULL,0,0});
 	Vertex qrand, *qnear, *qnew=NULL;
-	int h = emptyMap.rows;
-	int w = emptyMap.cols;
-	std::cout << "size map"  << " ( " << h << " , " << w  << " )" << std::endl;
-	
-	while(ros::ok() && (qnew == NULL || !(abs(qnew->data[0] - m.tX)<10 && abs(qnew->data[1] - m.tY)<10)))
-		{
-			m.tX=targetX;
-			m.tY=targetY;
-			cv::circle(image, cv::Point(m.tX,m.tY), 10, cv::Scalar(0,255,0), -1, 8, 0);
 
-			qnew = NULL;
-			Vertex target{{m.tX, m.tY}, NULL, 0.0, 0};
-			int ind = is_goal_reachable(target, vertices, emptyMap);
-			if( ind != -1)
-				{
-					qnear = vertices[ind];
-					qnew = new_conf(target, *qnear, &dq, emptyMap);
-				}
-			while(qnew == NULL)
-				{
-					
-					rand_free_conf(qrand, h, w);
-					cv::circle(image, cv::Point(qrand.data[0],qrand.data[1]), 2, cv::Scalar(0,0,0), -1, 8, 0);
-					qnear = nearest_vertex(qrand, vertices);
-					qnew = new_conf(qrand, *qnear, &dq, emptyMap);
-					dq = MAX_INC;
-				}
-			vertices.push_back(qnew);
-			cv::line(image, vertex_to_point2f(*qnear), vertex_to_point2f(*qnew), cv::Scalar(0,0,255), 1, CV_AA);
-			cv::imshow( "Display window2", image );                   // Show our image inside it.
-			cv::waitKey(10);
+	cv::Mat image,endIm, emptyMap;
+
+	int h = m.map.rows;
+	int w = m.map.cols;
+	std::cout << "size map"  << " ( " << h << " , " << w  << " )" << std::endl;
+
+	// Copy the map as it really is to emptyMap (the map we are using to check if a path is ok or not)
+	m.map.copyTo(emptyMap);
+	
+
+	// Dilate all the obstacles: we add to their real border the diameter of the robot
+	cv::Mat se = cv::getStructuringElement(cv::MORPH_ELLIPSE,cv::Size(3*ROBOT_RADIUS/m.res,3*ROBOT_RADIUS/m.res),cv::Point(-1,-1));
+	cv::erode(emptyMap, emptyMap, se, cv::Point(-1,-1), 1, cv::BORDER_CONSTANT, cv::morphologyDefaultBorderValue());
+
+	m.map.copyTo(image);
+	// cv::circle(image, cv::Point(v->data[0], v->data[1]), 10, cv::Scalar(0,255,0), -1, 8, 0);
+	image.copyTo(endIm);
+	vertices.push_back(v);
+
+	while(ros::ok() && (qnew == NULL || !(abs(qnew->data[0] - m.tX)<10 && abs(qnew->data[1] - m.tY)<10)))
+	{
+		m.tX=targetX;
+		m.tY=targetY;
+		cv::circle(image, cv::Point(m.tX,m.tY), 10, cv::Scalar(0,255,0), -1, 8, 0);
+
+		qnew = NULL;
+		Vertex target{{m.tX, m.tY}, NULL, 0.0, 0};
+		int ind = is_goal_reachable(target, vertices, emptyMap);
+		if( ind != -1)
+		{
+			qnear = vertices[ind];
+			qnew = new_conf(target, *qnear, &dq, emptyMap);
 		}
+		while(qnew == NULL)
+		{
+			rand_free_conf(qrand, h, w);
+			cv::circle(image, cv::Point(qrand.data[0],qrand.data[1]), 2, cv::Scalar(0,0,0), -1, 8, 0);
+			qnear = nearest_vertex(qrand, vertices);
+			qnew = new_conf(qrand, *qnear, &dq, emptyMap);
+			dq = MAX_INC;
+		}
+		vertices.push_back(qnew);
+		cv::line(image, vertex_to_point2f(*qnear), vertex_to_point2f(*qnew), cv::Scalar(0,0,255), 1, CV_AA);
+		cv::imshow( "Display window2", image );                   // Show our image inside it.
+		cv::waitKey(10);
+	}
 
 	std::cout << "Path found. Lenght: "<< qnew->dist << std::endl;
 	Vertex *parent=qnew->parent;
@@ -192,7 +200,11 @@ std::vector<Vertex*>& rrt(Vertex* v, Map& m)
 
 	smoothen_path(endIm, emptyMap, path);
 	 	
+	// for(int i = 0 ; i<path.size(); i++)
+	// 	std::cout << "pt n°" << i << " ( " << path[i]->data[0] << " , " << path[i]->data[1] << " )" << std::endl; 
+	
 	std::vector<Vertex*>* pathCopy = new std::vector<Vertex*>(path); 
+
 	return *pathCopy;
 }
 
@@ -226,18 +238,21 @@ int simpleRRT(char *map_file)
  * @param path the path to convvert
  * @return msg the constructed nav_msgs::Path message
  */
-nav_msgs::Path construct_path_msg(std::vector<Vertex*> &path)
+nav_msgs::Path construct_path_msg(std::vector<Vertex*> &path, const Map& m)
 {
 	nav_msgs::Path msg;
+	std::vector<Vertex*> real_path(path.size());
 	std::vector<geometry_msgs::PoseStamped> poses(path.size());
 	for (int i = 0; i < path.size(); i++)
 	{
-		std::cout << "pt n°" << i << " ( " << path[i]->data[0] << " , " << path[i]->data[1] << " )" << std::endl; 
-		poses.at(i).pose.position.x =0.01* path[i]->data[0];
-		poses.at(i).pose.position.y = 0.01*path[i]->data[1];
+		real_path[i] = map_to_odom(path[i], m);
+		poses.at(i).pose.position.x = real_path[i]->data[0];
+		poses.at(i).pose.position.y = real_path[i]->data[1];
+		std::cout << "REAL pt n°" << i << " ( " << real_path[i]->data[0] << " , " << real_path[i]->data[1] << " )" << std::endl; 
 		poses.at(i).header.frame_id = "map";
 	}
 	msg.poses = poses;
+	msg.header.frame_id = "map";
 	return msg;
 }
 
@@ -274,7 +289,10 @@ int main(int argc, char* argv[])
 
 	ros::NodeHandle n;
 	ros::Rate loop_rate(100); //10 Hz
-	ros::Publisher pubPath = n.advertise<nav_msgs::Path>("path", 10);
+	ros::Publisher pubPath = n.advertise<nav_msgs::Path>("/rrt/path", 10);
+
+	std::vector<Vertex*> path;
+	nav_msgs::Path path_to_pub;
 
 	std::vector<Vertex*> vertices;
 	cv::Mat image,emptyMap, inMap;
@@ -330,31 +348,20 @@ int main(int argc, char* argv[])
 		r.robot_pos[1] = transform_slam.getOrigin().y();
 
 		odom_to_map(r, map);
-		cv::circle(map.map, cv::Point(r.robot_pos_in_image[0], r.robot_pos_in_image[1]), ROBOT_RADIUS/map.res, cv::Scalar(0,0,0), -1, 8, 0);
-		// std::vector<Vertex*>& path = rrt(new Vertex{{r.robot_pos_in_image[0],r.robot_pos_in_image[1]},NULL,0,0},targetX,targetY,emptyMap);
-		// nav_msgs::Path path_msg = construct_path_msg(path);
-		// path_msg.header.frame_id = "map";
-		// pubPath.publish(path_msg);
-		// std::cout << std::endl;
-		// std::cout << r.robot_pos_in_image[0] << "|" << r.robot_pos_in_image[1] << std::endl;
-		// std::cout << transform_slam.getOrigin().x() << std::endl;
-		//    std::cout << transform_slam.getOrigin().y() << std::endl;
-		//    std::cout << transform_slam.getOrigin().z() << std::endl;
-		//    std::cout << transform_slam.getRotation().x() << std::endl;
-		//    std::cout << transform_slam.getRotation().y() << std::endl;
-		//    std::cout << transform_slam.getRotation().z() << std::endl;
-		//    std::cout << transform_slam.getRotation().w() << std::endl;  
-
+		
 		if(targetY != targetPastY && targetX != targetPastX)
 		{
-			rrt(new Vertex{{r.robot_pos_in_image[0],r.robot_pos_in_image[1]},NULL,0,0}, map);
+			std::cout << "Robot REAL pos: " << r.robot_pos[0] << " | " << r.robot_pos[1] << std::endl;
+			path = rrt(new Vertex{{r.robot_pos_in_image[0],r.robot_pos_in_image[1]},NULL,0,0}, map);
+			path_to_pub = construct_path_msg(path, map);
 			targetPastX = targetX;
 			targetPastY = targetY;
 		}
 
+		cv::circle(map.map, cv::Point(r.robot_pos_in_image[0], r.robot_pos_in_image[1]), ROBOT_RADIUS/map.res, cv::Scalar(0,0,0), -1, 8, 0);
 		cv::imshow( "Display window", map.map );                   // Show our image inside it.
 		cv::circle(map.map, cv::Point(r.robot_pos_in_image[0], r.robot_pos_in_image[1]), ROBOT_RADIUS/map.res, cv::Scalar(255,0,0), -1, 8, 0);
-		//pubPath.publish(path_msg);
+		pubPath.publish(path_to_pub);
 		cv::waitKey(10);
 	}	
 	return 0;
