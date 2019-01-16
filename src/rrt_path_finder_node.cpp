@@ -67,6 +67,14 @@ void odom_to_map(Robot& r, const Map& m)
 	r.robot_pos_in_image[1] = m.height - (r.robot_pos[1]/m.res - m.origin[1]/m.res);
 }
 
+Vertex *map_to_odom(const Vertex *v, const Map& m)
+{
+	Vertex *ret = new Vertex();
+	ret->data[0] = v->data[0]*m.res + m.origin[0];
+	ret->data[1] = v->data[1]*m.res - m.height*m.res + m.origin[1];
+	return ret;
+}
+
 static void onMouse( int event, int x, int y, int, void* )
 {
 	if( event != cv::EVENT_LBUTTONDOWN )
@@ -140,7 +148,7 @@ std::vector<Vertex*>& rrt(Vertex* v, Map& m)
 	m.map.copyTo(emptyMap);
 	
 	// Dilate all the obstacles: we add to their real border the diameter of the robot
-	cv::Mat se = cv::getStructuringElement(cv::MORPH_ELLIPSE,cv::Size(2*ROBOT_RADIUS/m.res,2*ROBOT_RADIUS/m.res),cv::Point(-1,-1));
+	cv::Mat se = cv::getStructuringElement(cv::MORPH_ELLIPSE,cv::Size(3*ROBOT_RADIUS/m.res,3*ROBOT_RADIUS/m.res),cv::Point(-1,-1));
 	cv::erode(emptyMap, emptyMap, se, cv::Point(-1,-1), 1, cv::BORDER_CONSTANT, cv::morphologyDefaultBorderValue());
 
 	m.map.copyTo(image);
@@ -190,8 +198,8 @@ std::vector<Vertex*>& rrt(Vertex* v, Map& m)
 
 	smoothen_path(endIm, emptyMap, path);
 	 	
-	for(int i = 0 ; i<path.size(); i++)
-		std::cout << "pt n°" << i << " ( " << path[i]->data[0] << " , " << path[i]->data[1] << " )" << std::endl; 
+	// for(int i = 0 ; i<path.size(); i++)
+	// 	std::cout << "pt n°" << i << " ( " << path[i]->data[0] << " , " << path[i]->data[1] << " )" << std::endl; 
 	
 	std::vector<Vertex*>* pathCopy = new std::vector<Vertex*>(path); 
 
