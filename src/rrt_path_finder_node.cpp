@@ -71,7 +71,7 @@ Vertex *map_to_odom(const Vertex *v, const Map& m)
 {
 	Vertex *ret = new Vertex();
 	ret->data[0] = v->data[0]*m.res + m.origin[0];
-	ret->data[1] = v->data[1]*m.res - m.height*m.res + m.origin[1];
+	ret->data[1] = -(v->data[1] - m.height)*m.res + m.origin[1];
 	return ret;
 }
 
@@ -196,7 +196,7 @@ std::vector<Vertex*>& rrt(Vertex* v, Map& m)
 	/* Shortening the path with straight lines part */
 	straighten_path(endIm, emptyMap, path);
 
-	smoothen_path(endIm, emptyMap, path);
+	// smoothen_path(endIm, emptyMap, path);
 	 	
 	// for(int i = 0 ; i<path.size(); i++)
 	// 	std::cout << "pt n°" << i << " ( " << path[i]->data[0] << " , " << path[i]->data[1] << " )" << std::endl; 
@@ -236,18 +236,21 @@ int simpleRRT(char *map_file)
  * @param path the path to convvert
  * @return msg the constructed nav_msgs::Path message
  */
-nav_msgs::Path construct_path_msg(std::vector<Vertex*> &path)
+nav_msgs::Path construct_path_msg(std::vector<Vertex*> &path, const Map& m)
 {
 	nav_msgs::Path msg;
+	std::vector<Vertex*> real_path(path.size());
 	std::vector<geometry_msgs::PoseStamped> poses(path.size());
 	for (int i = 0; i < path.size(); i++)
 	{
-		std::cout << "pt n°" << i << " ( " << path[i]->data[0] << " , " << path[i]->data[1] << " )" << std::endl; 
-		poses.at(i).pose.position.x =0.01* path[i]->data[0];
-		poses.at(i).pose.position.y = 0.01*path[i]->data[1];
+		real_path[i] = map_to_odom(path[i], m);
+		poses.at(i).pose.position.x = real_path[i]->data[0];
+		poses.at(i).pose.position.y = real_path[i]->data[1];
+		std::cout << "REAL pt n°" << i << " ( " << real_path[i]->data[0] << " , " << real_path[i]->data[1] << " )" << std::endl; 
 		poses.at(i).header.frame_id = "map";
 	}
 	msg.poses = poses;
+	msg.header.frame_id = "map";
 	return msg;
 }
 
@@ -284,7 +287,10 @@ int main(int argc, char* argv[])
 
 	ros::NodeHandle n;
 	ros::Rate loop_rate(100); //10 Hz
-	ros::Publisher pubPath = n.advertise<nav_msgs::Path>("path", 10);
+	ros::Publisher pubPath = n.advertise<nav_msgs::Path>("/rrt/path", 10);
+
+	std::vector<Vertex*> path;
+	nav_msgs::Path path_to_pub;
 
 	std::vector<Vertex*> vertices;
 	cv::Mat image,emptyMap, inMap;
@@ -340,14 +346,12 @@ int main(int argc, char* argv[])
 		r.robot_pos[1] = transform_slam.getOrigin().y();
 
 		odom_to_map(r, map);
-		// std::vector<Vertex*>& path = rrt(new Vertex{{r.robot_pos_in_image[0],r.robot_pos_in_image[1]},NULL,0,0},targetX,targetY,emptyMap);
-		// nav_msgs::Path path_msg = construct_path_msg(path);
-		// path_msg.header.frame_id = "map";
-		// pubPath.publish(path_msg);
-
+		
 		if(targetY != targetPastY && targetX != targetPastX)
 		{
-			rrt(new Vertex{{r.robot_pos_in_image[0],r.robot_pos_in_image[1]},NULL,0,0}, map);
+			std::cout << "Robot REAL pos: " << r.robot_pos[0] << " | " << r.robot_pos[1] << std::endl;
+			path = rrt(new Vertex{{r.robot_pos_in_image[0],r.robot_pos_in_image[1]},NULL,0,0}, map);
+			path_to_pub = construct_path_msg(path, map);
 			targetPastX = targetX;
 			targetPastY = targetY;
 		}
@@ -355,7 +359,7 @@ int main(int argc, char* argv[])
 		cv::circle(map.map, cv::Point(r.robot_pos_in_image[0], r.robot_pos_in_image[1]), ROBOT_RADIUS/map.res, cv::Scalar(0,0,0), -1, 8, 0);
 		cv::imshow( "Display window", map.map );                   // Show our image inside it.
 		cv::circle(map.map, cv::Point(r.robot_pos_in_image[0], r.robot_pos_in_image[1]), ROBOT_RADIUS/map.res, cv::Scalar(255,0,0), -1, 8, 0);
-		//pubPath.publish(path_msg);
+		pubPath.publish(path_to_pub);
 		cv::waitKey(10);
 	}	
 	return 0;
