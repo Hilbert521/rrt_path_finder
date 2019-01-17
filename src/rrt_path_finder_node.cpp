@@ -149,7 +149,7 @@ std::vector<Vertex*>& rrt(Vertex* v, Map& m)
 	
 
 	// Dilate all the obstacles: we add to their real border the diameter of the robot
-	cv::Mat se = cv::getStructuringElement(cv::MORPH_ELLIPSE,cv::Size(3*ROBOT_RADIUS/m.res,3*ROBOT_RADIUS/m.res),cv::Point(-1,-1));
+	cv::Mat se = cv::getStructuringElement(cv::MORPH_ELLIPSE,cv::Size(5*ROBOT_RADIUS/m.res,5*ROBOT_RADIUS/m.res),cv::Point(-1,-1));
 	cv::erode(emptyMap, emptyMap, se, cv::Point(-1,-1), 1, cv::BORDER_CONSTANT, cv::morphologyDefaultBorderValue());
 
 	m.map.copyTo(image);
@@ -198,7 +198,7 @@ std::vector<Vertex*>& rrt(Vertex* v, Map& m)
 
 	linear_interpol_path(endIm, emptyMap, path);
 
-	smoothen_path(endIm, emptyMap, path);
+	smoothen_path(endIm, emptyMap, path, BEZIER);
 
 	cv::imshow( "Display window2", image ); 
 	 	
@@ -206,6 +206,8 @@ std::vector<Vertex*>& rrt(Vertex* v, Map& m)
 	// 	std::cout << "pt n°" << i << " ( " << path[i]->data[0] << " , " << path[i]->data[1] << " )" << std::endl; 
 	
 	std::vector<Vertex*>* pathCopy = new std::vector<Vertex*>(path); 
+
+	std::reverse(pathCopy->begin(),pathCopy->end());
 
 	return *pathCopy;
 }

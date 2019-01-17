@@ -238,7 +238,7 @@ void smoothen_path(cv::Mat image, const cv::Mat emptyMap, std::vector<Vertex*>& 
 		{
 			int N = path.size();
 			double Tx[N][N], Ty[N][N]; 
-			double nbPt = 20;
+			double nbPt = 100;
 			for(int j=0; j<N; j++)
 				{
 					Tx[0][j]=path[j]->data[0];
