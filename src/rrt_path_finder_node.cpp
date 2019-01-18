@@ -35,6 +35,7 @@
 
 double targetX=0;
 double targetY=0;
+bool rviz_goal_flag = false;
 
 typedef struct _Robot
 {
@@ -60,6 +61,14 @@ static void onMouse( int event, int x, int y, int, void* );
 
 
 Robot r;
+
+void goalCallback(const geometry_msgs::PoseStamped::ConstPtr& msg)
+{
+	targetX = msg->pose.position.x;
+	targetY = msg->pose.position.y;
+	rviz_goal_flag = true;
+	std::cout << targetX << " " << targetY << std::endl;
+}
 
 void odom_to_map(Robot& r, const Map& m)
 {
@@ -130,7 +139,7 @@ bool get_slam_map(Map& map)
 
 
 
-std::vector<Vertex*>& rrt(Vertex* v, Map& m)
+std::vector<Vertex*>& rrt(Vertex* v, Map& m, bool with_gui)
 {
 	/* RRT Part */
 	srand(time(NULL));
@@ -181,7 +190,10 @@ std::vector<Vertex*>& rrt(Vertex* v, Map& m)
 				}
 			vertices.push_back(qnew);
 			cv::line(image, vertex_to_point2f(*qnear), vertex_to_point2f(*qnew), cv::Scalar(0,0,255), 1, CV_AA);
-			cv::imshow( "Display window2", image );                   // Show our image inside it.
+			if(with_gui)
+			{
+				cv::imshow( "Display window2", image );                   // Show our image inside it.
+			}
 			cv::waitKey(10);
 		}
 
@@ -191,28 +203,31 @@ std::vector<Vertex*>& rrt(Vertex* v, Map& m)
 	std::vector<Vertex*> path(qnew->index+1);
 
 	/* Finding the path part */
-	find_path(image, parent, qnew, path);
+	find_path(image, parent, qnew, path, with_gui);
+	std::cout << "find path OK" << std::endl;
 
 	/* Shortening the path with straight lines part */
-	straighten_path(endIm, emptyMap, path);
+	straighten_path(endIm, emptyMap, path, with_gui);
+	std::cout << "straighten_path OK" << std::endl;
 
-	linear_interpol_path(endIm, emptyMap, path);
+	linear_interpol_path(endIm, emptyMap, path, with_gui);
+	std::cout << "interpolation OK" << std::endl;
 
-	smoothen_path(endIm, emptyMap, path, BEZIER);
+	smoothen_path(endIm, emptyMap, path, BEZIER, with_gui);
+	std::cout << "smoothen path OK" << std::endl;
 
-	cv::imshow( "Display window2", image ); 
-	 	
 	// for(int i = 0 ; i<path.size(); i++)
 	// 	std::cout << "pt n°" << i << " ( " << path[i]->data[0] << " , " << path[i]->data[1] << " )" << std::endl; 
 	
 	std::vector<Vertex*>* pathCopy = new std::vector<Vertex*>(path); 
 
 	std::reverse(pathCopy->begin(),pathCopy->end());
+	std::cout << "Path found. Lenght: "<< qnew->dist << std::endl;
 
 	return *pathCopy;
 }
 
-int simpleRRT(char *map_file)
+int simpleRRT(char *map_file, bool with_gui)
 {
 	/* RRT example: not with a robot in parallel for pathfinding */
 	cv::Mat image,emptyMap;
@@ -227,7 +242,7 @@ int simpleRRT(char *map_file)
 	map.tY = targetY;
 	map.map = image;
 	
-	std::vector<Vertex*> path = rrt(new Vertex{{60.,60.},NULL,0,0}, map);
+	std::vector<Vertex*> path = rrt(new Vertex{{60.,60.},NULL,0,0}, map, with_gui);
 
 	for(int i = 0 ; i<path.size(); i++)
 		std::cout << "pt n°" << i << " ( " << path[i]->data[0] << " , " << path[i]->data[1] << " )" << std::endl; 
@@ -264,11 +279,14 @@ nav_msgs::Path construct_path_msg(std::vector<Vertex*> &path, const Map& m)
 int main(int argc, char* argv[])
 {
 	bool without_mapping = false;
+	bool with_gui = false;
 	for(int i = 0 ; i < argc ; i++)
 		{
 			std::string arg(argv[i]);
 			if(arg == "--without-mapping")
 				without_mapping = true;
+			if(arg == "--with-gui")
+				with_gui = true;
 		}
 
 	if(argc < 3 && without_mapping)
@@ -279,21 +297,25 @@ int main(int argc, char* argv[])
 	
 	ros::init(argc, argv, "rrt_path_finder_node");
 
-	cv::namedWindow( "Display window", cv::WINDOW_NORMAL );// Create a window to display the robot in its environment.
-	cv::namedWindow( "Display window2", cv::WINDOW_NORMAL );// Create a window to display the rrt algorithm working.
-	cv::setMouseCallback( "Display window", onMouse, 0 );
-	cv::setMouseCallback( "Display window2", onMouse, 0 );
-
+	if(with_gui)
+	{
+		cv::namedWindow( "Display window", cv::WINDOW_NORMAL );// Create a window to display the robot in its environment.
+		cv::namedWindow( "Display window2", cv::WINDOW_NORMAL );// Create a window to display the rrt algorithm working.
+		cv::setMouseCallback( "Display window", onMouse, 0 );
+		cv::setMouseCallback( "Display window2", onMouse, 0 );
+	}
+	
 	if(without_mapping)
 		{
 			std::cout << "simple RRT exemple" << std::endl;
-			simpleRRT(argv[1]);
+			simpleRRT(argv[1], with_gui);
 			return 0;
 		}
 
 	ros::NodeHandle n;
 	ros::Rate loop_rate(100); //10 Hz
 	ros::Publisher pubPath = n.advertise<nav_msgs::Path>("/rrt/path", 10);
+	ros::Subscriber subPath = n.subscribe("/move_base_simple/goal", 10, goalCallback);
 
 	std::vector<Vertex*> path;
 	nav_msgs::Path path_to_pub;
@@ -311,6 +333,7 @@ int main(int argc, char* argv[])
 	targetY = -1;
 	double targetPastX = -1;
 	double targetPastY = -1;
+
 	if(!get_slam_map(map))	{ return 1;}
     
 	r.robot_pos[0] = -1;
@@ -337,6 +360,7 @@ int main(int argc, char* argv[])
 
 	while(ros::ok())
 		{
+			ros::spinOnce();
 			// Get frame change between slam_karto map frame and the frame of the odom of the robot
 			tf::StampedTransform transform_slam;
 			try
@@ -355,16 +379,28 @@ int main(int argc, char* argv[])
 		
 			if(targetY != targetPastY && targetX != targetPastX)
 				{
+					if(rviz_goal_flag)
+					{
+						targetX = targetX/map.res - map.origin[0]/map.res;
+						targetY = map.height - (targetY/map.res - map.origin[1]/map.res);
+						std::cout << targetX << " " << targetY << std::endl;
+						rviz_goal_flag = false;
+					}
 					std::cout << "Robot REAL pos: " << r.robot_pos[0] << " | " << r.robot_pos[1] << std::endl;
-					path = rrt(new Vertex{{r.robot_pos_in_image[0],r.robot_pos_in_image[1]},NULL,0,0}, map);
+					std::cout << "Robot IM pos: " << r.robot_pos_in_image[0] << " | " << r.robot_pos_in_image[1] << std::endl;
+					path = rrt(new Vertex{{r.robot_pos_in_image[0],r.robot_pos_in_image[1]},NULL,0,0}, map, with_gui);
 					path_to_pub = construct_path_msg(path, map);
 					targetPastX = targetX;
 					targetPastY = targetY;
 				}
 
-			cv::circle(map.map, cv::Point(r.robot_pos_in_image[0], r.robot_pos_in_image[1]), ROBOT_RADIUS/map.res, cv::Scalar(0,0,0), -1, 8, 0);
-			cv::imshow( "Display window", map.map );                   // Show our image inside it.
-			cv::circle(map.map, cv::Point(r.robot_pos_in_image[0], r.robot_pos_in_image[1]), ROBOT_RADIUS/map.res, cv::Scalar(255,0,0), -1, 8, 0);
+			if(with_gui)
+			{
+				cv::circle(map.map, cv::Point(r.robot_pos_in_image[0], r.robot_pos_in_image[1]), ROBOT_RADIUS/map.res, cv::Scalar(0,0,0), -1, 8, 0);
+				cv::imshow( "Display window", map.map );                   // Show our image inside it.
+				cv::circle(map.map, cv::Point(r.robot_pos_in_image[0], r.robot_pos_in_image[1]), ROBOT_RADIUS/map.res, cv::Scalar(255,0,0), -1, 8, 0);
+			}
+
 			pubPath.publish(path_to_pub);
 			cv::waitKey(10);
 		}	

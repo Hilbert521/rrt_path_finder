@@ -41,10 +41,10 @@ Vertex* nearest_vertex(const Vertex& qrand, const std::vector<Vertex*>& lv);
 void rand_free_conf(Vertex& qrand, int height, int width);
 Vertex* new_conf(const Vertex& qrand, Vertex& qnear, double *dq, const cv::Mat& im);
 
-void find_path(cv::Mat image, Vertex* parent, Vertex* qnew, std::vector<Vertex*>& path);
-void straighten_path(cv::Mat image, const cv::Mat emptyMap, std::vector<Vertex*>& path);
-void smoothen_path(cv::Mat image, const cv::Mat emptyMap, std::vector<Vertex*>& path,int type_interpolation=BEZIER);
+void find_path(cv::Mat image, Vertex* parent, Vertex* qnew, std::vector<Vertex*>& path, bool with_gui=false);
+void straighten_path(cv::Mat image, const cv::Mat emptyMap, std::vector<Vertex*>& path, bool with_gui=false);
+void smoothen_path(cv::Mat image, const cv::Mat emptyMap, std::vector<Vertex*>& path,int type_interpolation=BEZIER, bool with_gui=false);
 
-void linear_interpol_path(cv::Mat image, const cv::Mat emptyMap, std::vector<Vertex*>& path);
+void linear_interpol_path(cv::Mat image, const cv::Mat emptyMap, std::vector<Vertex*>& path, bool with_gui=false);
 
 #endif

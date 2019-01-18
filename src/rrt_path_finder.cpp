@@ -123,7 +123,7 @@ Vertex* new_conf(const Vertex& qrand, Vertex& qnear, double *dq, const cv::Mat& 
 
 
 
-void find_path(cv::Mat image, Vertex* parent, Vertex* qnew, std::vector<Vertex*>& path)
+void find_path(cv::Mat image, Vertex* parent, Vertex* qnew, std::vector<Vertex*>& path, bool with_gui)
 {
   while(parent!=NULL)
   {
@@ -131,13 +131,16 @@ void find_path(cv::Mat image, Vertex* parent, Vertex* qnew, std::vector<Vertex*>
     cv::line(image, vertex_to_point2f(*parent), vertex_to_point2f(*qnew), cv::Scalar(0,255,0), 2, CV_AA);
     qnew=parent;
     parent=qnew->parent;
-    cv::imshow( "Display window2", image );
-    cv::waitKey(1);
+    if(with_gui)
+	{
+    	cv::imshow( "Display window2", image );
+    	cv::waitKey(1);
+    }
   }
   path[qnew->index]=qnew;
 }
 
-void straighten_path(cv::Mat image, const cv::Mat emptyMap, std::vector<Vertex*>& path)
+void straighten_path(cv::Mat image, const cv::Mat emptyMap, std::vector<Vertex*>& path, bool with_gui)
 {
  	unsigned int i=0;
   while(i < path.size()-2)
@@ -155,21 +158,24 @@ void straighten_path(cv::Mat image, const cv::Mat emptyMap, std::vector<Vertex*>
 			
 		}
 		i++;
-		cv::imshow( "Display window2", image );
-		cv::waitKey(10);
+		if(with_gui)
+		{
+			cv::imshow( "Display window2", image );
+			cv::waitKey(1);
+		}
 	}
 }
 
-void linear_interpol_path(cv::Mat image, const cv::Mat emptyMap, std::vector<Vertex*>& path)
+void linear_interpol_path(cv::Mat image, const cv::Mat emptyMap, std::vector<Vertex*>& path, bool with_gui)
 {
-        
+    std::cout << "Starting interpol path" << std::endl;
 	int N = path.size();
 	double nbPt = 5;
 	double dt[path.size()-1];
-	
+    std::cout << "Starting work" << std::endl;
+
 	for(int k=0; k < path.size()-1; k++)
 			dt[k] = sqrt(dist2(*path[k],*path[k+1]))/200.;
-	
 	std::vector<Vertex*>::iterator it=path.begin();
 	for(int i =0, j=0;i<N-1 ; it++, i++,j++)
 		{
@@ -185,16 +191,21 @@ void linear_interpol_path(cv::Mat image, const cv::Mat emptyMap, std::vector<Ver
 					N++;
 				}
 		}
+
 	for(int k=0; k < path.size(); k++)
 		{
 			cv::circle(image, cv::Point2f(path[k]->data[0], path[k]->data[1]), 3, cv::Scalar(0,200,0), -1, 10, 0);
-			cv::imshow( "Display window", image );
+			if(with_gui)
+			{
+				cv::imshow( "Display window", image );
+				cv::waitKey(1);
+			}
 		}
 
 	
 }
 
-void smoothen_path(cv::Mat image, const cv::Mat emptyMap, std::vector<Vertex*>& path,int type_interpolation)
+void smoothen_path(cv::Mat image, const cv::Mat emptyMap, std::vector<Vertex*>& path,int type_interpolation, bool with_gui)
 {
 	if(type_interpolation == LAGRANGE)
 		{
@@ -229,7 +240,11 @@ void smoothen_path(cv::Mat image, const cv::Mat emptyMap, std::vector<Vertex*>& 
 							//std::cout << "k=" << k << " fx " << fx << " fy" << fy << std::endl;
 						}
 					cv::circle(image, cv::Point2f(fx, fy), 3, cv::Scalar(0,0,0), -1, 8, 0);
-					cv::imshow( "Display window", image );
+					if(with_gui)
+					{
+						cv::imshow( "Display window", image );
+						cv::waitKey(1);
+					}
 					std::cout << "t=" << t << " ( " << fx << " , " << fy << " )" << std::endl; 
 				}
 
@@ -258,7 +273,11 @@ void smoothen_path(cv::Mat image, const cv::Mat emptyMap, std::vector<Vertex*>& 
 						}
 					path.push_back(new Vertex{{Tx[N-1][N-1], Ty[N-1][N-1]},NULL, 1, 0});
 					cv::circle(image, cv::Point2f(Tx[N-1][N-1], Ty[N-1][N-1]), 3, cv::Scalar(0,0,0), -1, 8, 0);
-					cv::imshow( "Display window", image );
+					if(with_gui)
+					{
+						cv::imshow( "Display window", image );
+						cv::waitKey(1);
+					}
 					//std::cout << "t=" << t << " ( " << Tx[N-1][N-1] << " , " << Ty[N-1][N-1] << " )" << std::endl;
 				}
 		}
