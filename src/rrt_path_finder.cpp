@@ -172,25 +172,30 @@ void linear_interpol_path(cv::Mat image, const cv::Mat emptyMap, std::vector<Ver
 	int N = path.size();
 	double nbPt = 5;
 	double dt[path.size()-1];
-    std::cout << "Starting work" << std::endl;
+
+	std::vector<Vertex*> new_path;
 
 	for(int k=0; k < path.size()-1; k++)
 			dt[k] = sqrt(dist2(*path[k],*path[k+1]))/200.;
+    std::cout << "Step 1 ok" << std::endl;
+
 	std::vector<Vertex*>::iterator it=path.begin();
-	for(int i =0, j=0;i<N-1 ; it++, i++,j++)
+	for(int i =0;i<N-1 ; i++)
 		{
 			double vx = path[i]->data[0];
 			double vy = path[i]->data[1];
 			double dx = path[i+1]->data[0];
 			double dy = path[i+1]->data[1];
 			
-			for(double t = 0; t <=  1; t += 1/(nbPt+dt[j]))
+			for(double t = 0; t <=  1; t += 1/(nbPt+dt[i]))
 				{
-					path.insert(++it,new Vertex{{t*dx + (1-t)*vx,t*dy +(1-t)*vy},NULL, 1, 0});
-					i++;
-					N++;
+				    std::cout << "avant" << std::endl;
+
+					new_path.push_back(new Vertex{{t*dx + (1-t)*vx,t*dy +(1-t)*vy},NULL, 1, 0});
+				    std::cout << "apres" << std::endl;
 				}
 		}
+    std::cout << "Step 2 ok" << std::endl;
 
 	for(int k=0; k < path.size(); k++)
 		{
@@ -201,12 +206,19 @@ void linear_interpol_path(cv::Mat image, const cv::Mat emptyMap, std::vector<Ver
 				cv::waitKey(1);
 			}
 		}
+	path.erase(path.begin(),path.end());	
+	for(int i = 0; i<new_path.size();i++)
+		path.push_back(new_path[i]);
 
-	
+    std::cout << "Step 3 ok" << std::endl;
+
+
 }
 
 void smoothen_path(cv::Mat image, const cv::Mat emptyMap, std::vector<Vertex*>& path,int type_interpolation, bool with_gui)
 {
+    std::cout << "Starting smoothen path" << std::endl;
+
 	if(type_interpolation == LAGRANGE)
 		{
 			double Ldenom[path.size()];

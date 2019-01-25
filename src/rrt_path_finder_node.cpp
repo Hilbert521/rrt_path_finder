@@ -158,7 +158,11 @@ std::vector<Vertex*>& rrt(Vertex* v, Map& m, bool with_gui)
 	
 
 	// Dilate all the obstacles: we add to their real border the diameter of the robot
-	cv::Mat se = cv::getStructuringElement(cv::MORPH_ELLIPSE,cv::Size(5*ROBOT_RADIUS/m.res,5*ROBOT_RADIUS/m.res),cv::Point(-1,-1));
+	cv::Mat se_ouverture = cv::getStructuringElement(cv::MORPH_ELLIPSE,cv::Size(ROBOT_RADIUS/m.res/10<1?1:ROBOT_RADIUS/m.res/10, ROBOT_RADIUS/m.res/10<1?1:ROBOT_RADIUS/m.res/10),cv::Point(-1,-1));
+	cv::Mat se = cv::getStructuringElement(cv::MORPH_ELLIPSE,cv::Size(ROBOT_RADIUS/m.res<1?1:ROBOT_RADIUS/m.res, ROBOT_RADIUS/m.res<1?1:ROBOT_RADIUS/m.res),cv::Point(-1,-1));
+	// Ouverture pour supprimer les petits elements et grossir les gros
+	cv::dilate(emptyMap, emptyMap, se_ouverture, cv::Point(-1,-1), 1, cv::BORDER_CONSTANT, cv::morphologyDefaultBorderValue());
+	cv::erode(emptyMap, emptyMap, se_ouverture, cv::Point(-1,-1), 1, cv::BORDER_CONSTANT, cv::morphologyDefaultBorderValue());
 	cv::erode(emptyMap, emptyMap, se, cv::Point(-1,-1), 1, cv::BORDER_CONSTANT, cv::morphologyDefaultBorderValue());
 
 	m.map.copyTo(image);
@@ -193,6 +197,7 @@ std::vector<Vertex*>& rrt(Vertex* v, Map& m, bool with_gui)
 			if(with_gui)
 			{
 				cv::imshow( "Display window2", image );                   // Show our image inside it.
+				cv::imshow( "Display window3", emptyMap );                   // Show our image inside it.
 			}
 			cv::waitKey(10);
 		}
@@ -237,7 +242,7 @@ int simpleRRT(char *map_file, bool with_gui)
 	
 	map.width = image.cols;
 	map.height = image.rows;
-	map.res = 1;
+	map.res = ROBOT_RADIUS;
 	map.tX = targetX;
 	map.tY = targetY;
 	map.map = image;
@@ -301,8 +306,10 @@ int main(int argc, char* argv[])
 	{
 		cv::namedWindow( "Display window", cv::WINDOW_NORMAL );// Create a window to display the robot in its environment.
 		cv::namedWindow( "Display window2", cv::WINDOW_NORMAL );// Create a window to display the rrt algorithm working.
+		cv::namedWindow( "Display window3", cv::WINDOW_NORMAL );// Create a window to display the rrt algorithm working.
 		cv::setMouseCallback( "Display window", onMouse, 0 );
 		cv::setMouseCallback( "Display window2", onMouse, 0 );
+		cv::setMouseCallback( "Display window3", onMouse, 0 );
 	}
 	
 	if(without_mapping)
@@ -345,7 +352,7 @@ int main(int argc, char* argv[])
 			tf::StampedTransform transform_slam;
 			try
 				{
-					t.lookupTransform("map", "base_footprint", ros::Time(0), transform_slam);
+					t.lookupTransform("map", "base_link", ros::Time(0), transform_slam);
 				}
 			catch (tf::TransformException ex)
 				{
@@ -365,7 +372,7 @@ int main(int argc, char* argv[])
 			tf::StampedTransform transform_slam;
 			try
 				{
-					t.lookupTransform("map", "base_footprint", ros::Time(0), transform_slam);
+					t.lookupTransform("map", "base_link", ros::Time(0), transform_slam);
 				}
 			catch (tf::TransformException ex)
 				{
