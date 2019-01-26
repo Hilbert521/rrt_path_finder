@@ -30,8 +30,8 @@
 #include "rrt_path_finder.hpp"
 
 
-
 #define ROBOT_RADIUS 0.35
+#define OP_FACTOR 3
 
 double targetX=0;
 double targetY=0;
@@ -158,12 +158,12 @@ std::vector<Vertex*>& rrt(Vertex* v, Map& m, bool with_gui)
 	
 
 	// Dilate all the obstacles: we add to their real border the diameter of the robot
-	cv::Mat se_ouverture = cv::getStructuringElement(cv::MORPH_ELLIPSE,cv::Size(ROBOT_RADIUS/m.res/10<1?1:ROBOT_RADIUS/m.res/10, ROBOT_RADIUS/m.res/10<1?1:ROBOT_RADIUS/m.res/10),cv::Point(-1,-1));
-	cv::Mat se = cv::getStructuringElement(cv::MORPH_ELLIPSE,cv::Size(ROBOT_RADIUS/m.res<1?1:ROBOT_RADIUS/m.res, ROBOT_RADIUS/m.res<1?1:ROBOT_RADIUS/m.res),cv::Point(-1,-1));
+	cv::Mat se_ouverture = cv::getStructuringElement(cv::MORPH_ELLIPSE,cv::Size(ROBOT_RADIUS/m.res/OP_FACTOR<1?1:ROBOT_RADIUS/m.res/OP_FACTOR, ROBOT_RADIUS/m.res/OP_FACTOR<1?1:ROBOT_RADIUS/m.res/OP_FACTOR),cv::Point(-1,-1));
+	cv::Mat se = cv::getStructuringElement(cv::MORPH_ELLIPSE,cv::Size(3*ROBOT_RADIUS/m.res<1?1:ROBOT_RADIUS/m.res, 3*ROBOT_RADIUS/m.res<1?1:ROBOT_RADIUS/m.res),cv::Point(-1,-1));
 	// Ouverture pour supprimer les petits elements et grossir les gros
 	cv::dilate(emptyMap, emptyMap, se_ouverture, cv::Point(-1,-1), 1, cv::BORDER_CONSTANT, cv::morphologyDefaultBorderValue());
 	cv::erode(emptyMap, emptyMap, se_ouverture, cv::Point(-1,-1), 1, cv::BORDER_CONSTANT, cv::morphologyDefaultBorderValue());
-	cv::erode(emptyMap, emptyMap, se, cv::Point(-1,-1), 1, cv::BORDER_CONSTANT, cv::morphologyDefaultBorderValue());
+	cv::erode(emptyMap, emptyMap, se, cv::Point(-1,-1), 3, cv::BORDER_CONSTANT, cv::morphologyDefaultBorderValue());
 
 	m.map.copyTo(image);
 	// cv::circle(image, cv::Point(v->data[0], v->data[1]), 10, cv::Scalar(0,255,0), -1, 8, 0);
