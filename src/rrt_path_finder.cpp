@@ -68,12 +68,15 @@ double no_wall_between(const Vertex& v1, const Vertex& v2, const cv::Mat& im)
 
   while((vx*i*vx*i) + (vy*i*vy*i) < dist)
   {
+	  
     if(pixelPtr[(int)(ceil((v1.data[1] + i*vy))*im.cols*cn + ceil((v1.data[0] + i*vx))*cn)] == 0)
       return i - PRECISION;
     i += PRECISION;
   }
   return i;
 }
+
+
 
 Vertex* nearest_vertex(const Vertex& qrand, const std::vector<Vertex*>& lv)
 {
@@ -177,7 +180,7 @@ void linear_interpol_path(cv::Mat image, const cv::Mat emptyMap, std::vector<Ver
 
 	for(int k=0; k < path.size()-1; k++)
 			dt[k] = sqrt(dist2(*path[k],*path[k+1]))/200.;
-    std::cout << "Step 1 ok" << std::endl;
+	//std::cout << "Step 1 ok" << std::endl;
 
 	std::vector<Vertex*>::iterator it=path.begin();
 	for(int i =0;i<N-1 ; i++)
@@ -189,13 +192,13 @@ void linear_interpol_path(cv::Mat image, const cv::Mat emptyMap, std::vector<Ver
 			
 			for(double t = 0; t <=  1; t += 1/(nbPt+dt[i]))
 				{
-				    std::cout << "avant" << std::endl;
+					//std::cout << "avant" << std::endl;
 
 					new_path.push_back(new Vertex{{t*dx + (1-t)*vx,t*dy +(1-t)*vy},NULL, 1, 0});
-				    std::cout << "apres" << std::endl;
+					//std::cout << "apres" << std::endl;
 				}
 		}
-    std::cout << "Step 2 ok" << std::endl;
+	//std::cout << "Step 2 ok" << std::endl;
 
 	for(int k=0; k < path.size(); k++)
 		{
