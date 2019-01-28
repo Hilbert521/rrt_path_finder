@@ -171,7 +171,7 @@ std::vector<Vertex*>& rrt(Vertex* v, Map& m, bool with_gui,Vertex* tar=NULL)
 
   /// Apply the erosion operation
 	//	erode( src, erosion_dst, element );
-	cv::dilate(emptyMap, emptyMap, se, cv::Point(-1,-1), 4, cv::BORDER_CONSTANT, cv::morphologyDefaultBorderValue());
+	cv::erode(emptyMap, emptyMap, se, cv::Point(-1,-1), 4, cv::BORDER_CONSTANT, cv::morphologyDefaultBorderValue());
 
 	m.map.copyTo(image);
 	// cv::circle(image, cv::Point(v->data[0], v->data[1]), 10, cv::Scalar(0,255,0), -1, 8, 0);
@@ -235,10 +235,10 @@ std::vector<Vertex*>& rrt(Vertex* v, Map& m, bool with_gui,Vertex* tar=NULL)
 	//std::cout << "straighten_path OK" << std::endl;
 
 	//if(tar==NULL)
-		linear_interpol_path(endIm, emptyMap, path, with_gui);
+	linear_interpol_path(endIm, emptyMap, path, with_gui);
 	//std::cout << "interpolation OK" << std::endl;
-	if(tar==NULL)
-		smoothen_path(endIm, emptyMap, path, BEZIER, with_gui);
+	//if(tar==NULL)
+	smoothen_path(endIm, emptyMap, path, BEZIER, with_gui);
 	//std::cout << "smoothen path OK" << std::endl;
 
 	// for(int i = 0 ; i<path.size(); i++)
