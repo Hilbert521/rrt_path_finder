@@ -31,7 +31,7 @@
 
 
 #define ROBOT_RADIUS 0.35
-#define OP_FACTOR 2
+#define OP_FACTOR 3
 
 double targetX=0;
 double targetY=0;
@@ -165,8 +165,8 @@ std::vector<Vertex*>& rrt(Vertex* v, Map& m, bool with_gui,Vertex* tar=NULL)
 					       cv::Size(3*ROBOT_RADIUS/m.res<1?1:ROBOT_RADIUS/m.res, 3*ROBOT_RADIUS/m.res<1?1:ROBOT_RADIUS/m.res),
 					       cv::Point(-1,-1));
 	// Ouverture pour supprimer les petits elements et grossir les gros
-	//cv::dilate(emptyMap, emptyMap, se_ouverture, cv::Point(-1,-1), 1, cv::BORDER_CONSTANT, cv::morphologyDefaultBorderValue());
-	//cv::erode(emptyMap, emptyMap, se_ouverture, cv::Point(-1,-1), 1, cv::BORDER_CONSTANT, cv::morphologyDefaultBorderValue());
+	cv::dilate(emptyMap, emptyMap, se_ouverture, cv::Point(-1,-1), 1, cv::BORDER_CONSTANT, cv::morphologyDefaultBorderValue());
+	cv::erode(emptyMap, emptyMap, se_ouverture, cv::Point(-1,-1), 1, cv::BORDER_CONSTANT, cv::morphologyDefaultBorderValue());
         
 
   /// Apply the erosion operation
@@ -340,24 +340,24 @@ void avoid_obstacle(std::vector<Vertex*> &path, Map& m)
 	cv::Mat se_ouverture = cv::getStructuringElement(cv::MORPH_ELLIPSE,cv::Size(ROBOT_RADIUS/m.res/OP_FACTOR<1?1:ROBOT_RADIUS/m.res/OP_FACTOR, ROBOT_RADIUS/m.res/OP_FACTOR<1?1:ROBOT_RADIUS/m.res/OP_FACTOR),cv::Point(-1,-1));
 	cv::Mat se = cv::getStructuringElement(cv::MORPH_ELLIPSE,cv::Size(3*ROBOT_RADIUS/m.res<1?1:ROBOT_RADIUS/m.res, 3*ROBOT_RADIUS/m.res<1?1:ROBOT_RADIUS/m.res),cv::Point(-1,-1));
 	// Ouverture pour supprimer les petits elements et grossir les gros
-	//cv::dilate(emptyMap, emptyMap, se_ouverture, cv::Point(-1,-1), 1, cv::BORDER_CONSTANT, cv::morphologyDefaultBorderValue());
-	//cv::erode(emptyMap, emptyMap, se_ouverture, cv::Point(-1,-1), 1, cv::BORDER_CONSTANT, cv::morphologyDefaultBorderValue());
+	cv::dilate(emptyMap, emptyMap, se_ouverture, cv::Point(-1,-1), 1, cv::BORDER_CONSTANT, cv::morphologyDefaultBorderValue());
+	cv::erode(emptyMap, emptyMap, se_ouverture, cv::Point(-1,-1), 1, cv::BORDER_CONSTANT, cv::morphologyDefaultBorderValue());
 	cv::erode(emptyMap, emptyMap, se, cv::Point(-1,-1), 4, cv::BORDER_CONSTANT, cv::morphologyDefaultBorderValue());
 	
 	for (int i = 0; i < path.size()-1; i++)
 		{
 			double dist = sqrt(dist2( *path[i],  *path[i+1]));
 			n_path.push_back(path[i]);
-			std::cout << "pt : "  << i << "   /nb:" << path.size() << std::endl;
+			//std::cout << "pt : "  << i << "   /nb:" << path.size() << std::endl;
 			//std::cout << "test : "  << no_wall_between( *path[i], *path[i+1], m.map)<< std::endl;
 			if(dist > no_wall_between( *path[i], *path[i+1], emptyMap))
 				{
 					is_ok = false;
 					int j = i+1;
-					std::cout << "Wall found ... "  << std::endl;
+					//std::cout << "Wall found ... "  << std::endl;
 					if(is_in_wall( *path[j], emptyMap))
 						{
-							std::cout << "on wall ... "  << std::endl;
+							//std::cout << "on wall ... "  << std::endl;
 							for(j=j+1; j < path.size(); j++)
 								if(!is_in_wall( *path[j], emptyMap))
 										break;
@@ -372,7 +372,7 @@ void avoid_obstacle(std::vector<Vertex*> &path, Map& m)
 	
 	if(!is_ok)
 		{
-			std::cout << "New trajectory ... "  << std::endl;
+			//std::cout << "New trajectory ... "  << std::endl;
 			path.erase(path.begin(),path.end());	
 			for(int i = 0; i<n_path.size();i++)
 				path.push_back(n_path[i]);
@@ -380,7 +380,9 @@ void avoid_obstacle(std::vector<Vertex*> &path, Map& m)
 			
 		}
 	else
-		std::cout << "No trajectory ... "  << std::endl;
+		{
+			//std::cout << "No trajectory ... "  << std::endl;
+		}
 					
 }
 
@@ -507,11 +509,11 @@ int main(int argc, char* argv[])
 					targetPastX = targetX;
 					targetPastY = targetY;
 				}
-			std::cout << "running..." << std::endl;
+			//std::cout << "running..." << std::endl;
 			if(path.size()>0)
 				{
 					avoid_obstacle(path, map);
-					std::cout << "publishing..." << std::endl;
+					//std::cout << "publishing..." << std::endl;
 					path_to_pub = construct_path_msg(path, map);
 					pubPath.publish(path_to_pub);
 				}
